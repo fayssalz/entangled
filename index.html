@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entangled Nodes</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #050505; 
+            font-family: sans-serif;
+            color: #eee;
+        }
+        #windowIdDisplay {
+            color: #00d4ff;
+            font-weight: bold;
+        }
+        canvas {
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: -1; /* Ensure canvas is behind any potential UI elements */
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        Open this page in multiple browser windows/tabs and drag them around!
+        <br>
+        Window ID: <span id="windowIdDisplay"></span>
+    </div>
+    <script>
+        // --- Window Synchronization Logic ---
+        const channel = new BroadcastChannel('entangled_nodes');
+        const windowId = Math.random().toString(36).substring(2, 9); // Shorter ID for display
+        document.getElementById('windowIdDisplay').textContent = windowId;
+
+        let otherWindows = {};
+        let lastWinX = window.screenX;
+        let lastWinY = window.screenY;
+        let winVelX = 0;
+        let winVelY = 0;
+
+        function broadcastPosition() {
+            // Calculate window velocity for the "fluid" drag effect
+            winVelX = window.screenX - lastWinX;
+            winVelY = window.screenY - lastWinY;
+            lastWinX = window.screenX;
+            lastWinY = window.screenY;
+
+            const position = {
+                type: 'update',
+                id: windowId,
+                x: window.screenX + window.innerWidth / 2,
+                y: window.screenY + window.innerHeight / 2,
+                timestamp: Date.now(),
+                vx: winVelX,
+                vy: winVelY
+            };
+            channel.postMessage(position);
+        }
+
+        channel.onmessage = (event) => {
+            if (event.data.id === windowId) return;
+            if (event.data.type === 'close') {
+                delete otherWindows[event.data.id];
+            } else {
+                const { id, x, y, vx, vy } = event.data;
+                otherWindows[id] = { x, y, vx, vy, lastSeen: Date.now() };
+            }
+        };
+
+        // --- Visualization Logic ---
+        const canvas = document.querySelector('canvas') || document.createElement('canvas');
+        if (!canvas.parentElement) document.body.appendChild(canvas);
+        const ctx = canvas.getContext('2d');
+
+        const particleCount = 400;
+        const systems = new Map(); // Store particle arrays for each window ID
+
+        class Particle {
+            constructor(i) {
+                // Deterministic initialization based on index i
+                const seed = i * 13.37;
+                this.angle = (Math.sin(seed) * 0.5 + 0.5) * Math.PI * 2;
+                this.radius = 40 + (Math.cos(seed * 2) * 0.5 + 0.5) * 60;
+                this.size = 0.5 + (Math.sin(seed * 3) * 0.5 + 0.5) * 1.5;
+                this.speed = 0.02 + (Math.cos(seed * 4) * 0.5 + 0.5) * 0.05;
+                
+                this.x = 0; // Calculated in Global Screen Space
+                this.y = 0; 
+                this.vx = 0;
+                this.vy = 0;
+                this.firstFrame = true;
+            }
+
+            update(targetX, targetY, vX, vY, allOrbCenters) {
+                if (this.firstFrame) {
+                    this.x = targetX;
+                    this.y = targetY;
+                    this.firstFrame = false;
+                }
+
+                this.angle += this.speed;
+                const orbitX = targetX + Math.cos(this.angle) * this.radius;
+                const orbitY = targetY + Math.sin(this.angle) * this.radius;
+
+                // Physics: Inertia based on window movement + Spring to orbit
+                this.vx -= vX * 0.1; 
+                this.vy -= vY * 0.1;
+                this.vx += (orbitX - this.x) * 0.05;
+                this.vy += (orbitY - this.y) * 0.05;
+
+                // Entanglement: Gravity pull towards all other orb centers
+                allOrbCenters.forEach(center => {
+                    if (center.x === targetX && center.y === targetY) return;
+                    const dx = center.x - this.x;
+                    const dy = center.y - this.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < 300) {
+                        const strength = Math.max(0, (300 - dist) / 300);
+                        this.vx += dx * 0.02 * strength;
+                        this.vy += dy * 0.02 * strength;
+                    }
+                });
+
+                // Friction
+                this.vx *= 0.85;
+                this.vy *= 0.85;
+                this.x += this.vx;
+                this.y += this.vy;
+            }
+        }
+
+        function getOrCreateSystem(id) {
+            if (!systems.has(id)) {
+                const parts = [];
+                for (let i = 0; i < particleCount; i++) parts.push(new Particle(i));
+                systems.set(id, parts);
+            }
+            return systems.get(id);
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        const drawCore = (localX, localY, color = '#00d4ff') => {
+            const gradient = ctx.createRadialGradient(localX, localY, 0, localX, localY, 30);
+            gradient.addColorStop(0, '#fff');
+            gradient.addColorStop(0.2, color);
+            gradient.addColorStop(1, 'transparent');
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(localX, localY, 30, 0, Math.PI * 2);
+            ctx.fill();
+        };
+
+        function draw() {
+            try {
+            // Reset composite operation to default so the background rectangle clears correctly
+            ctx.globalCompositeOperation = 'source-over';
+            
+            // Create trail effect
+            ctx.fillStyle = 'rgba(5, 5, 5, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const localCenterX = window.screenX + canvas.width / 2;
+            const localCenterY = window.screenY + canvas.height / 2;
+
+            // Gather all current orb centers for entanglement logic
+            const allCenters = [{ x: localCenterX, y: localCenterY }];
+            Object.values(otherWindows).forEach(win => allCenters.push({ x: win.x, y: win.y }));
+
+            // Update and Draw all systems (Local + Remote Clones)
+            ctx.globalCompositeOperation = 'lighter';
+            
+            // 1. Process Local System
+            const localParticles = getOrCreateSystem(windowId);
+            localParticles.forEach(p => {
+                p.update(localCenterX, localCenterY, winVelX, winVelY, allCenters);
+                ctx.fillStyle = '#00d4ff';
+                ctx.beginPath();
+                ctx.arc(p.x - window.screenX, p.y - window.screenY, p.size, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            drawCore(localCenterX - window.screenX, localCenterY - window.screenY);
+
+            // 2. Process Remote Systems (The Clones)
+            Object.keys(otherWindows).forEach(id => {
+                const win = otherWindows[id];
+                const particles = getOrCreateSystem(id);
+
+                particles.forEach(p => {
+                    p.update(win.x, win.y, win.vx, win.vy, allCenters);
+                    ctx.fillStyle = 'rgba(0, 212, 255, 0.6)';
+                    ctx.beginPath();
+                    ctx.arc(p.x - window.screenX, p.y - window.screenY, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+
+                const relX = win.x - window.screenX;
+                const relY = win.y - window.screenY;
+                drawCore(relX, relY, 'rgba(0, 212, 255, 0.4)');
+
+                // Draw Tendril between Local and this Remote
+                ctx.strokeStyle = 'rgba(0, 212, 255, 0.2)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(localCenterX - window.screenX, localCenterY - window.screenY);
+                const cpX = (localCenterX + win.x) / 2 - window.screenX + (Math.sin(Date.now() / 200) * 30);
+                const cpY = (localCenterY + win.y) / 2 - window.screenY + (Math.cos(Date.now() / 200) * 30);
+                ctx.quadraticCurveTo(cpX, cpY, relX, relY);
+                ctx.stroke();
+            });
+
+            // 3. Cleanup stale systems
+            for (const id of systems.keys()) {
+                if (id !== windowId && !otherWindows[id]) {
+                    systems.delete(id);
+                }
+            }
+
+            } catch (e) {
+                console.error(`Error in draw loop for window ${windowId}:`, e);
+            } finally {
+                requestAnimationFrame(draw); // Always schedule the next frame
+            }
+        }
+
+        draw();
+
+        // Broadcast position independently of the render loop to prevent background freezing
+        setInterval(broadcastPosition, 16);
+
+        setInterval(() => {
+            const now = Date.now();
+            for (const id in otherWindows) {
+                if (now - otherWindows[id].lastSeen > 5000) {
+                    delete otherWindows[id];
+                }
+            }
+        }, 2000);
+
+        window.addEventListener('beforeunload', () => {
+            channel.postMessage({ id: windowId, type: 'close' });
+            channel.close();
+        });
+    </script>
+</body>
+</html>
