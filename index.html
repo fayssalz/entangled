@@ -6,6 +6,7 @@
     <title>Entangled Nodes</title>
     <style>
         body {
+            transition: background-color 0.2s;
             margin: 0;
             overflow: hidden;
             background-color: #050505; 
@@ -32,25 +33,230 @@
             border-radius: 5px;
             font-size: 0.9em;
         }
+        #networkUI {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+            border: 1px solid #333;
+        }
+        #networkUI input {
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 3px;
+            width: 100px;
+        }
+        #networkUI button {
+            cursor: pointer;
+            background: #00d4ff;
+            border: none;
+            color: #000;
+            font-weight: bold;
+            padding: 3px 7px;
+        }
+        #hud {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+        }
+        #energyContainer {
+            width: 200px;
+            height: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            margin-top: 5px;
+        }
+        #leftHud {
+            position: absolute;
+            bottom: 20px;
+            left: 20px; /* Position to the left */
+            text-align: left; /* Align text within it */
+            pointer-events: none;
+            width: 150px; /* Smaller width for left bars */
+        }
+        .hud-bar-container {
+            width: 100%; /* Take full width of its parent */
+            height: 8px; /* Smaller height */
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px; /* Smaller border-radius */
+        }
+        .hud-bar {
+            width: 100%;
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.1s;
+        }
+        /* Specific colors for each bar */
+        #ammoBar { background: #00d4ff; } /* Blue for particles/ammo */
+        #nitroBar { background: #ff00ff; } /* Magenta for nitro */
+        #shieldBar { background: #00ff00; } /* Green for shield */
+        #energyBar {
+            width: 100%;
+            height: 100%;
+            background: #00d4ff;
+            border-radius: 5px;
+            transition: width 0.1s;
+        }
+        #leaderboard {
+            margin-top: 10px;
+        }
+        #waveOverlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 3em;
+            font-weight: bold;
+            color: #ff0044;
+            text-shadow: 0 0 20px rgba(255, 0, 68, 0.5);
+            pointer-events: none;
+            display: none;
+            z-index: 100;
+        }
     </style>
 </head>
 <body>
     <div id="info">
-        Open this page in multiple browser windows/tabs and drag them around!
-        <br>
-        Window ID: <span id="windowIdDisplay"></span>
+        <b>WASD/Arrows</b>: Move | <b>Click</b>: Shoot | <b>Space</b>: Shield | <b>Shift</b>: Nitro
+        Window ID: <span id="windowIdDisplay" title="Click to change ID" style="cursor: pointer; text-decoration: underline dotted;"></span>
     </div>
+    <div id="networkUI">
+        <div>Your ID: <b id="myPeerId">...</b></div>
+        <input type="text" id="destPeerId" placeholder="Friend's ID">
+        <button onclick="connectToPeer()">CONNECT LAN</button>
+    </div>
+    <div id="leftHud">
+        <div style="font-size: 0.8em;">PARTICLES: <span id="particleDisplay">250</span></div>
+        <div id="ammoContainer" class="hud-bar-container"><div id="ammoBar" class="hud-bar"></div></div>
+
+        <div style="font-size: 0.8em; margin-top: 5px;">NITRO</div>
+        <div id="nitroContainer" class="hud-bar-container">
+            <div id="nitroBar" class="hud-bar"></div>
+        </div>
+
+        <div style="font-size: 0.8em; margin-top: 5px;">SHIELD</div>
+        <div id="shieldContainer" class="hud-bar-container">
+            <div id="shieldBar" class="hud-bar"></div>
+        </div>
+    </div>
+    <div id="waveOverlay">WAVE 1 STARTING...</div>
+    <div id="hud">
+        <div>SCORE: <span id="scoreDisplay">0</span></div>
+        <div id="comboDisplay" style="color: #ffcc00; font-weight: bold; font-size: 1.2em; height: 1.5em; text-shadow: 0 0 10px rgba(255,204,0,0.5);"></div>
+        <div id="leaderboard"></div>
+    </div>
+    <!-- Load PeerJS for LAN P2P support -->
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script>
+        // --- Configuration & State ---
+        const particleCount = 10000; // Increased pool for overcharge mechanics
+        const connectionDist = 80; // Distance to draw lines between particles
+
         // --- Window Synchronization Logic ---
         const channel = new BroadcastChannel('entangled_nodes');
-        const windowId = Math.random().toString(36).substring(2, 9); // Shorter ID for display
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const customId = urlParams.get('id');
+        const adjectives = ['neon', 'solar', 'arctic', 'lunar', 'cosmic', 'atomic', 'plasma', 'void', 'cyber', 'hyper', 'zenith', 'stellar', 'omega', 'delta', 'pulse'];
+        const nouns = ['star', 'node', 'wave', 'core', 'flux', 'grid', 'spark', 'drift', 'link', 'beam', 'vortex', 'aura', 'echo', 'prism', 'orbit'];
+        
+        const windowId = customId || `${adjectives[Math.floor(Math.random() * adjectives.length)]}-${nouns[Math.floor(Math.random() * nouns.length)]}`;
+
+        // Generate a unique hue for this window
+        const windowHue = Math.floor(Math.random() * 360);
+        const windowColor = `hsla(${windowHue}, 100%, 60%, 1)`;
+        
         document.getElementById('windowIdDisplay').textContent = windowId;
+        document.getElementById('windowIdDisplay').style.color = windowColor;
+
+        window.changeId = function() {
+            const newId = prompt("Enter a custom ID (e.g., your name):", windowId);
+            if (newId) {
+                const sanitized = newId.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
+                window.location.search = `?id=${sanitized}`;
+            }
+        };
 
         let otherWindows = {};
         let lastWinX = window.screenX;
         let lastWinY = window.screenY;
         let winVelX = 0;
         let winVelY = 0;
+        let mousePos = { x: -1000, y: -1000 };
+
+        // Gamification State
+        let score = 0;
+        const pulseCost = 20;
+        let combo = 1.0;
+        let screenShake = 0;
+
+        // New Kinetic & Combat State
+        let nodeOffX = 0, nodeOffY = 0, nodeVX = 0, nodeVY = 0;
+        const keys = {};
+        let lastShootTime = 0;
+        let lastShieldTime = 0;
+        let projectiles = [];
+        let currentParticles = 250;
+        let isPointerDown = false;
+        let stars = [];
+        let lastStarSpawn = 0;
+         // Wave System State
+        let asteroids = new Map(); // Store by ID
+        let currentWave = 0;
+        let waveStatus = 'waiting'; // 'playing' | 'cooldown'
+        let countdownTime = 0;
+        let lastWaveTick = 0;
+        let myWave = null; // { startTime }
+        let asteroidsToSpawn = 0;
+        let lastSingleSpawnTime = 0;
+
+        // Nitro State
+        let isNitroActive = false;
+        let nitroStartTime = 0;
+        let lastNitroEndTime = Date.now() - 20000;
+        const nitroDuration = 3000;
+        const nitroCooldown = 20000;
+
+        // --- PeerJS Networking ---
+        const peer = new Peer(windowId);
+        let connections = [];
+
+        peer.on('open', id => {
+            document.getElementById('myPeerId').textContent = id;
+        });
+
+        peer.on('error', err => {
+            if (err.type === 'id-taken') alert('That ID is already in use! Try clicking your ID to change it.');
+        });
+
+        peer.on('connection', conn => {
+            setupConnection(conn);
+        });
+
+        function connectToPeer() {
+            const destId = document.getElementById('destPeerId').value;
+            if (destId) setupConnection(peer.connect(destId));
+        }
+
+        function setupConnection(conn) {
+            connections.push(conn);
+            conn.on('data', data => handleIncomingData(data));
+            conn.on('close', () => {
+                connections = connections.filter(c => c !== conn);
+            });
+        }
+
+        function broadcast(data) {
+            channel.postMessage(data); // Local tabs
+            connections.forEach(conn => conn.send(data)); // Remote laptops
+        }
 
         function broadcastPosition() {
             // Calculate window velocity for the "fluid" drag effect
@@ -62,31 +268,124 @@
             const position = {
                 type: 'update',
                 id: windowId,
-                x: window.screenX + window.innerWidth / 2,
-                y: window.screenY + window.innerHeight / 2,
+                hue: windowHue,
+                x: window.screenX + window.innerWidth / 2 + nodeOffX,
+                y: window.screenY + window.innerHeight / 2 + nodeOffY,
+                mouseX: window.screenX + mousePos.x,
+                mouseY: window.screenY + mousePos.y,
                 timestamp: Date.now(),
                 vx: winVelX,
-                vy: winVelY
+                vy: winVelY,
+                score: score,
+                particles: currentParticles
             };
-            channel.postMessage(position);
+            broadcast(position);
         }
 
-        channel.onmessage = (event) => {
-            if (event.data.id === windowId) return;
-            if (event.data.type === 'close') {
-                delete otherWindows[event.data.id];
+        function handleIncomingData(data) {
+            if (data.id === windowId) return;
+            if (data.type === 'close') {
+                delete otherWindows[data.id];
+            } else if (data.type === 'pulse') {
+                applyPulse(data.x, data.y, false);
+            } else if (data.type === 'shoot') {
+                projectiles.push(data.projectile);
+            } else if (data.type === 'shield') {
+                if (otherWindows[data.id]) otherWindows[data.id].wave = { startTime: data.startTime };
+            } else if (data.type === 'asteroid_spawn') {
+                const ast = new Asteroid(data.x, data.y, data.id, data.points, data.size);
+                asteroids.set(ast.id, ast);
+            } else if (data.type === 'asteroid_hit') {
+                const ast = asteroids.get(data.asteroidId);
+                if (ast) {
+                    ast.hp -= data.damage; // DAMAGE RECEIVED: Reduces asteroid HP by the damage amount (usually 1)
+                    if (ast.hp <= 0) {
+                        if (data.attackerId === windowId) score += 5000;
+                        asteroids.delete(data.asteroidId);
+                        screenShake = 10;
+                    }
+                }
+            } else if (data.type === 'wave_update') {
+                currentWave = data.wave;
+                waveStatus = data.status;
+                countdownTime = data.countdown;
+                updateWaveUI();
+            } else if (data.type === 'projectile_hit') {
+                if (data.targetId === windowId) {
+                    // Check Shield Protection (lasts 4s)
+                    if (myWave && Date.now() - myWave.startTime < 4000) return;
+                    // HEALTH DAMAGED: Player loses 500 particles when hit by a projectile
+                    currentParticles = Math.max(0, currentParticles - 10); // Massive damage from projectile
+                    screenShake = 20;
+                    document.body.style.backgroundColor = '#500';
+                    setTimeout(() => document.body.style.backgroundColor = '#050505', 150);
+                }
+            } else if (data.type === 'siphon') {
+                if (data.targetId === windowId) {
+                    if (myWave && Date.now() - myWave.startTime < 4000) return;
+                    
+                    currentParticles = Math.max(0, currentParticles - 100); // Siphon damage
+                    screenShake = 15;
+                    document.body.style.backgroundColor = '#500';
+                    setTimeout(() => document.body.style.backgroundColor = '#050505', 100);
+                }
             } else {
-                const { id, x, y, vx, vy } = event.data;
-                otherWindows[id] = { x, y, vx, vy, lastSeen: Date.now() };
+                const { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, wave, timestamp, particles: remoteParticles } = data;
+                otherWindows[id] = { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, lastSeen: Date.now(), wave, timestamp, particles: remoteParticles };
+                updateLeaderboard();
             }
-        };
+        }
+
+        channel.onmessage = (event) => handleIncomingData(event.data);
+
+        // --- Asteroid Logic ---
+        class Asteroid {
+            constructor(x, y, id, points, size) {
+                this.x = x; this.y = y;
+                this.id = id || Math.random().toString(36).substr(2, 9);
+                this.hp = 10;
+                this.size = size; // Use provided size
+                this.points = points; // Use provided points for shape
+                this.rotation = 0;
+                this.rotVel = (Math.random() - 0.5) * 0.05;
+                this.targetHue = Math.random() * 360; // For visual variation
+            }
+            update(tx, ty) {
+                const angle = Math.atan2(ty - this.y, tx - this.x);
+                this.x += Math.cos(angle) * 1.5;
+                this.y += Math.sin(angle) * 1.5;
+                this.rotation += this.rotVel;
+            }
+            draw(ctx) {
+                // Flame Trail
+                ctx.globalCompositeOperation = 'lighter';
+                for (let i = 0; i < 5; i++) {
+                    const r = Math.random() * 15;
+                    ctx.fillStyle = `rgba(255, ${Math.random() * 100}, 0, 0.4)`;
+                    ctx.beginPath(); // Flame trail
+                    ctx.arc(this.x - window.screenX - Math.cos(this.rotation) * 10 + (Math.random() - 0.5) * 10, 
+                            this.y - window.screenY - Math.sin(this.rotation) * 10 + (Math.random() - 0.5) * 10, r, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.fillStyle = '#444';
+                ctx.strokeStyle = '#222';
+                ctx.beginPath();
+                this.points.forEach((p, i) => {
+                    const rx = p.x * Math.cos(this.rotation) - p.y * Math.sin(this.rotation);
+                    const ry = p.x * Math.sin(this.rotation) + p.y * Math.cos(this.rotation);
+                    if (i === 0) ctx.moveTo(this.x - window.screenX + rx, this.y - window.screenY + ry);
+                    else ctx.lineTo(this.x - window.screenX + rx, this.y - window.screenY + ry);
+                });
+                ctx.closePath(); ctx.fill(); ctx.stroke();
+            }
+        }
 
         // --- Visualization Logic ---
         const canvas = document.querySelector('canvas') || document.createElement('canvas');
         if (!canvas.parentElement) document.body.appendChild(canvas);
         const ctx = canvas.getContext('2d');
 
-        const particleCount = 400;
         const systems = new Map(); // Store particle arrays for each window ID
 
         class Particle {
@@ -105,7 +404,7 @@
                 this.firstFrame = true;
             }
 
-            update(targetX, targetY, vX, vY, allOrbCenters) {
+            update(targetX, targetY, vX, vY, allOrbCenters, allMice) {
                 if (this.firstFrame) {
                     this.x = targetX;
                     this.y = targetY;
@@ -135,6 +434,18 @@
                     }
                 });
 
+                // Influence from all mice (Global Entanglement)
+                allMice.forEach(m => {
+                    const dx = m.x - this.x;
+                    const dy = m.y - this.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < 200) {
+                    const force = (200 - dist) * 0.0004;
+                        this.vx += dx * force;
+                        this.vy += dy * force;
+                    }
+                });
+
                 // Friction
                 this.vx *= 0.85;
                 this.vy *= 0.85;
@@ -159,74 +470,587 @@
         window.addEventListener('resize', resize);
         resize();
 
-        const drawCore = (localX, localY, color = '#00d4ff') => {
-            const gradient = ctx.createRadialGradient(localX, localY, 0, localX, localY, 30);
+        // Mouse and Interaction Events
+        window.addEventListener('pointermove', (e) => {
+            mousePos.x = e.clientX;
+            mousePos.y = e.clientY;
+        });
+        // Use pointerdown for multi-touch support
+        window.addEventListener('pointerdown', (e) => {
+            isPointerDown = true;
+            const globalX = window.screenX + e.clientX;
+            const globalY = window.screenY + e.clientY;
+            
+            // Still trigger visual pulse
+            broadcast({ type: 'pulse', x: globalX, y: globalY }); 
+            applyPulse(globalX, globalY, true);
+        });
+        
+        
+        function isMaster() {
+            const ids = [windowId, ...Object.keys(otherWindows)].sort();
+            return ids[0] === windowId;
+        }
+
+        function updateWaveUI() {
+            const overlay = document.getElementById('waveOverlay');
+            if (waveStatus === 'cooldown') {
+                overlay.style.display = 'block';
+                overlay.textContent = `NEXT WAVE IN ${countdownTime}s`;
+            } else if (asteroids.size === 0 && waveStatus === 'playing') {
+                overlay.style.display = 'block';
+                overlay.textContent = `WAVE ${currentWave} CLEARED!`;
+            } else {
+                overlay.style.display = 'none';
+            }
+        }
+
+        function manageGameFlow() {
+            if (!isMaster()) return;
+            const now = Date.now();
+
+            // Wave logic tick (runs every 1 second)
+            if (now - lastWaveTick >= 1000) {
+                lastWaveTick = now;
+                if (waveStatus === 'waiting' || (waveStatus === 'playing' && asteroids.size === 0 && asteroidsToSpawn === 0)) {
+                    waveStatus = 'cooldown';
+                    countdownTime = 10;
+                }
+
+                if (waveStatus === 'cooldown') {
+                    countdownTime--;
+                    if (countdownTime <= 0) {
+                        currentWave++;
+                        waveStatus = 'playing';
+                        spawnWave(20 + (currentWave - 1) * 10);
+                    }
+                    broadcast({ type: 'wave_update', wave: currentWave, status: waveStatus, countdown: countdownTime });
+                }
+            }
+
+            // Progressive moderated spawning (runs every 400ms)
+            if (waveStatus === 'playing' && asteroidsToSpawn > 0) {
+                if (now - lastSingleSpawnTime > 400) {
+                    createSingleAsteroid();
+                    asteroidsToSpawn--;
+                    lastSingleSpawnTime = now;
+                }
+            }
+        }
+
+        function spawnWave(count) {
+            asteroidsToSpawn = count;
+        }
+
+        function createSingleAsteroid() {
+            const side = Math.floor(Math.random() * 4);
+            let ax = 0, ay = 0;
+            if (side === 0) { ax = Math.random() * canvas.width; ay = -100; }
+            else if (side === 1) { ax = Math.random() * canvas.width; ay = canvas.height + 100; }
+            else if (side === 2) { ax = -100; ay = Math.random() * canvas.height; }
+            else { ax = canvas.width + 100; ay = Math.random() * canvas.height; }
+            
+            const size = 25 + Math.random() * 20;
+            const pts = [];
+            for (let j = 0; j < 8; j++) {
+                const angle = (j / 8) * Math.PI * 2;
+                const r = size * (0.8 + Math.random() * 0.4);
+                pts.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
+            }
+            const id = 'ast-' + Math.random().toString(36).substr(2, 5);
+            const astData = { type: 'asteroid_spawn', id, x: window.screenX + ax, y: window.screenY + ay, size, points: pts };
+            broadcast(astData);
+            handleIncomingData(astData);
+        }
+
+
+        window.addEventListener('pointerup', () => isPointerDown = false);
+        window.addEventListener('pointercancel', () => isPointerDown = false);
+
+        // Keyboard interaction to trigger pulses at window centers
+        window.addEventListener('keydown', e => { 
+            keys[e.code] = true; 
+            if (e.code === 'Space') e.preventDefault();
+        });
+        window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+        function triggerShoot(lCX, lCY) {
+            const now = Date.now();
+            // Fire rate limit: 700ms between shots
+            if (now - lastShootTime < 250) return; // keep always 250ms fire rate
+            if (currentParticles < 10) return;
+            
+            lastShootTime = now;
+            currentParticles = Math.max(0, currentParticles - 5);
+            
+            const gxMouse = window.screenX + mousePos.x;
+            const gyMouse = window.screenY + mousePos.y;
+            
+            const angle = Math.atan2(gyMouse - lCY, gxMouse - lCX);
+            const proj = {
+                id: Math.random().toString(36).substr(2, 5),
+                ownerId: windowId, hue: windowHue,
+                x: lCX, y: lCY, // Fire from center of core
+                vx: Math.cos(angle) * 12, vy: Math.sin(angle) * 12,
+                startTime: now
+            };
+            projectiles.push(proj);
+            broadcast({ type: 'shoot', projectile: proj });
+        }
+
+        function handleCombatActions(lCX, lCY) {
+            const now = Date.now();
+            // Continuous Fire
+            if (isPointerDown) {
+                triggerShoot(lCX, lCY);
+            }
+            // Shield Mechanic (Space)
+            if (keys['Space'] && now - lastShieldTime > 9000) {
+                lastShieldTime = now;
+                myWave = { startTime: now };
+                broadcast({ type: 'shield', id: windowId, startTime: now });
+            }
+            // Nitro Mechanic (Shift)
+            if ((keys['ShiftLeft'] || keys['ShiftRight']) && !isNitroActive && now > lastNitroEndTime + nitroCooldown) {
+                isNitroActive = true;
+                nitroStartTime = now;
+            }
+            if (isNitroActive && now > nitroStartTime + nitroDuration) {
+                isNitroActive = false;
+                lastNitroEndTime = now;
+            }
+        }
+
+        function drawProjectile(p) {
+            ctx.save();
+            ctx.translate(p.x - window.screenX, p.y - window.screenY);
+            ctx.rotate(Math.atan2(p.vy, p.vx));
+            
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = `hsla(${p.hue}, 100%, 50%, 1)`;
+            ctx.fillStyle = `hsla(${p.hue}, 100%, 80%, 1)`;
+            
+            // Drop shape
+            ctx.beginPath();
+            ctx.moveTo(8, 0); // front tip
+            ctx.bezierCurveTo(8, 4, 0, 4, -4, 4); 
+            ctx.arc(-4, 0, 4, Math.PI/2, -Math.PI/2); // back round
+            ctx.bezierCurveTo(0, -4, 8, -4, 8, 0); 
+            ctx.fill();
+            
+            ctx.restore();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawWave(x, y, startTime, hue) {
+            const elapsed = Date.now() - startTime;
+            if (elapsed > 4000) return;
+            const radius = (elapsed / 4000) * 250;
+            const opacity = 1 - (elapsed / 4000);
+            ctx.beginPath();
+            ctx.arc(x - window.screenX, y - window.screenY, radius, 0, Math.PI * 2);
+            ctx.strokeStyle = `hsla(${hue}, 100%, 70%, ${opacity})`;
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.fillStyle = `hsla(${hue}, 100%, 70%, ${opacity * 0.1})`;
+            ctx.fill();
+        }
+
+        function applyPulse(gx, gy, isLocal) {
+            if (isLocal) combo = Math.min(10, combo + 0.5);
+
+            if (isLocal) {
+                Object.entries(otherWindows).forEach(([id, win]) => {
+                    // Calculate distance between the pulse (gx, gy) and the remote window's core
+                    const dx = gx - win.x;
+                    const dy = gy - win.y;
+                    if (Math.hypot(dx, dy) < 60) {
+                        score += 30; //melee reward
+                        document.getElementById('scoreDisplay').textContent = score;
+                        broadcast({ type: 'siphon', targetId: id, attackerId: windowId });
+                    }
+                });
+            }
+
+            systems.forEach(particles => {
+                particles.forEach(p => {
+                    const dx = p.x - gx;
+                    const dy = p.y - gy;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist < 400) {
+                        const force = (400 - dist) * 0.2;
+                        const angle = Math.atan2(dy, dx);
+                        p.vx += Math.cos(angle) * force;
+                        p.vy += Math.sin(angle) * force;
+                    }
+                });
+            });
+        }
+
+        const drawCore = (localX, localY, color = '#00d4ff', scale = 1) => {
+            const baseRadius = 30 * scale;
+            const gradient = ctx.createRadialGradient(localX, localY, 0, localX, localY, baseRadius);
             gradient.addColorStop(0, '#fff');
             gradient.addColorStop(0.2, color);
             gradient.addColorStop(1, 'transparent');
             ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(localX, localY, 30, 0, Math.PI * 2);
+            ctx.arc(localX, localY, baseRadius, 0, Math.PI * 2);
             ctx.fill();
         };
 
+        function updateLeaderboard() {
+            const board = document.getElementById('leaderboard');
+            const players = [
+                { id: 'You', score: score, color: windowColor },
+                ...Object.entries(otherWindows).map(([id, win]) => ({
+                    id: id,
+                    score: win.score || 0,
+                    color: `hsla(${win.hue}, 100%, 60%, 1)`
+                }))
+            ];
+            players.sort((a, b) => b.score - a.score);
+            board.innerHTML = players.map(p => 
+                `<div style="color: ${p.color}">${p.id}: ${p.score}</div>`
+            ).join('');
+        }
+
         function draw() {
             try {
+            // Recharge logic
+            const time = Date.now() / 1000;
+            combo = Math.max(1.0, combo - 0.015);
+            if (screenShake > 0) screenShake *= 0.9;
+
+            // Replenish particles over time
+            if (currentParticles < particleCount) currentParticles += 0.02;
+
+            // Movement Logic (WASD + Arrows) with Nitro
+            const accel = isNitroActive ? 1.2 : 0.3;
+            if (keys['ArrowUp'] || keys['KeyW']) nodeVY -= accel;
+            if (keys['ArrowDown'] || keys['KeyS']) nodeVY += accel;
+            if (keys['ArrowLeft'] || keys['KeyA']) nodeVX -= accel;
+            if (keys['ArrowRight'] || keys['KeyD']) nodeVX += accel;
+
+            // Invisible Border Logic (Push back from window edges)
+            const margin = 60;
+            const centerX = canvas.width / 2 + nodeOffX;
+            const centerY = canvas.height / 2 + nodeOffY;
+            
+            if (centerX < margin) nodeVX += (margin - centerX) * 0.05;
+            if (centerX > canvas.width - margin) nodeVX -= (centerX - (canvas.width - margin)) * 0.05;
+            if (centerY < margin) nodeVY += (margin - centerY) * 0.05;
+            if (centerY > canvas.height - margin) nodeVY -= (centerY - (canvas.height - margin)) * 0.05;
+
+            nodeVX *= 0.94; nodeVY *= 0.94;
+            nodeOffX += nodeVX; nodeOffY += nodeVY;
+
+            // Update HUD
+            document.getElementById('particleDisplay').textContent = Math.floor(currentParticles);
+            
+            // Nitro Bar Update
+            const nBar = document.getElementById('nitroBar');
+            if (isNitroActive) {
+                const p = 1 - (Date.now() - nitroStartTime) / nitroDuration;
+                nBar.style.width = `${p * 100}%`;
+                nBar.style.backgroundColor = '#00ff00';
+            } else {
+                const p = Math.min(1, (Date.now() - lastNitroEndTime) / nitroCooldown);
+                nBar.style.width = `${p * 100}%`;
+                nBar.style.backgroundColor = p === 1 ? '#ff00ff' : '#444';
+            }
+
+            // Ammo Bar Update
+            const ammoBar = document.getElementById('ammoBar');
+            ammoBar.style.width = `${(currentParticles / particleCount) * 100}%`;
+            ammoBar.style.backgroundColor = currentParticles < 50 ? '#ffcc00' : '#00d4ff'; // Warning color for low ammo
+
+            // Shield Cooldown Bar Update
+            const shieldBar = document.getElementById('shieldBar');
+            const shieldElapsed = Date.now() - lastShieldTime;
+            if (shieldElapsed < 9000) { // If still on cooldown
+                const p = 1 - (shieldElapsed / 9000);
+                shieldBar.style.width = `${p * 100}%`;
+                shieldBar.style.backgroundColor = '#444'; // Gray when cooling down
+            } else {
+                shieldBar.style.width = '100%';
+                shieldBar.style.backgroundColor = '#00ff00'; // Green when ready
+            }
+
+            document.getElementById('comboDisplay').textContent = combo > 1.2 ? `x${combo.toFixed(1)} COMBO` : '';
+
             // Reset composite operation to default so the background rectangle clears correctly
             ctx.globalCompositeOperation = 'source-over';
             
             // Create trail effect
             ctx.fillStyle = 'rgba(5, 5, 5, 0.2)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Apply Screen Shake
+            if (screenShake > 0.1) {
+                ctx.translate(Math.random() * screenShake - screenShake/2, Math.random() * screenShake - screenShake/2);
+            }
             
-            const localCenterX = window.screenX + canvas.width / 2;
-            const localCenterY = window.screenY + canvas.height / 2;
+            const localCenterX = window.screenX + canvas.width / 2 + nodeOffX;
+            const localCenterY = window.screenY + canvas.height / 2 + nodeOffY;
+
+            handleCombatActions(localCenterX, localCenterY);
+
+            // --- XP Star System ---
+            if (stars.length < 3 && Date.now() - lastStarSpawn > 3000) {
+                stars.push({
+                    x: window.screenX + Math.random() * canvas.width,
+                    y: window.screenY + Math.random() * canvas.height,
+                    startTime: Date.now(),
+                    hue: Math.random() * 360
+                });
+                lastStarSpawn = Date.now();
+            }
+
+            for (let i = stars.length - 1; i >= 0; i--) {
+                const s = stars[i];
+                const age = Date.now() - s.startTime;
+                if (age > 10000) {
+                    stars.splice(i, 1);
+                    continue;
+                }
+                
+                // Draw Star (Blinking)
+                const blink = Math.sin(age * 0.005) * 0.5 + 0.5;
+                ctx.fillStyle = `hsla(${s.hue}, 100%, 80%, ${blink})`;
+                ctx.beginPath();
+                ctx.arc(s.x - window.screenX, s.y - window.screenY, 3, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Collection check
+                if (Math.hypot(s.x - localCenterX, s.y - localCenterY) < 40) {
+                    score += 30;
+                    currentParticles = Math.min(particleCount, currentParticles + 100);
+                    document.getElementById('scoreDisplay').textContent = score;
+                    stars.splice(i, 1);
+                }
+            }
+
+            // --- Core Collision Logic (Physics only) ---
+            Object.values(otherWindows).forEach(win => {
+                const dx = localCenterX - win.x;
+                const dy = localCenterY - win.y;
+                const dist = Math.hypot(dx, dy);
+                const minDist = 60; // radius + radius
+                
+                if (dist < minDist) {
+                    screenShake = 10;
+                    const angle = Math.atan2(dy, dx);
+                    const pushForce = (minDist - dist) * 0.2;
+                    nodeVX += Math.cos(angle) * pushForce;
+                    nodeVY += Math.sin(angle) * pushForce;
+                    // We don't apply damage or XP here as requested
+                }
+            });
 
             // Gather all current orb centers for entanglement logic
             const allCenters = [{ x: localCenterX, y: localCenterY }];
-            Object.values(otherWindows).forEach(win => allCenters.push({ x: win.x, y: win.y }));
+            const allMice = [{ x: window.screenX + mousePos.x, y: window.screenY + mousePos.y }];
+            
+            Object.values(otherWindows).forEach(win => {
+                allCenters.push({ x: win.x, y: win.y });
+                allMice.push({ x: win.mouseX, y: win.mouseY });
+            });
 
             // Update and Draw all systems (Local + Remote Clones)
             ctx.globalCompositeOperation = 'lighter';
             
-            // 1. Process Local System
-            const localParticles = getOrCreateSystem(windowId);
-            localParticles.forEach(p => {
-                p.update(localCenterX, localCenterY, winVelX, winVelY, allCenters);
-                ctx.fillStyle = '#00d4ff';
-                ctx.beginPath();
-                ctx.arc(p.x - window.screenX, p.y - window.screenY, p.size, 0, Math.PI * 2);
-                ctx.fill();
-            });
-            drawCore(localCenterX - window.screenX, localCenterY - window.screenY);
+            // Core size now represents health (particles)
+            const coreScale = 0.5 + (currentParticles / 1000) * 0.5 + Math.min(score / 50000, 0.5);
 
-            // 2. Process Remote Systems (The Clones)
-            Object.keys(otherWindows).forEach(id => {
+            // 1. Process Local System
+            const localParticles = getOrCreateSystem(windowId); // Ensure particles are initialized
+
+            // Collision detection for individual orbiting particles (Local Player)
+            let activeCount = Math.floor(currentParticles);
+            for (let i = 0; i < activeCount; i++) {
+                const p = localParticles[i];
+                let particleHit = false;
+
+                // Check against Asteroids
+                for (const [astId, ast] of asteroids.entries()) {
+                    if (Math.hypot(p.x - ast.x, p.y - ast.y) < ast.size) {
+                        // Particle hits asteroid: broadcast hit, particle is consumed
+                        broadcast({ type: 'asteroid_hit', asteroidId: astId, damage: 0.5, attackerId: windowId }); // Particle damage
+                        particleHit = true;
+                        break;
+                    }
+                }
+
+                // Check against Opponent Cores
+                if (!particleHit) {
+                    for (const win of Object.values(otherWindows)) {
+                        const opponentCoreRadius = 30 * (0.5 + (win.particles / 1000) * 0.5 + Math.min((win.score || 0) / 50000, 0.5));
+                        if (Math.hypot(p.x - win.x, p.y - win.y) < opponentCoreRadius) {
+                            // Particle hits opponent core: particle is consumed
+                            // No damage broadcast here, as per "melee fight" logic (particles just disappear)
+                            particleHit = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (particleHit) {
+                    currentParticles = Math.max(0, currentParticles - 1);
+                    activeCount--;
+                    i--; // Check the particle swapped into this position
+                }
+            }
+
+            drawSystem(localParticles, localCenterX, localCenterY, winVelX, winVelY, allCenters, allMice, windowHue, false, currentParticles);
+            drawCore(localCenterX - window.screenX, localCenterY - window.screenY,`hsla(${windowHue}, 100%, 50%, 0.8)`, coreScale);
+
+            // Update and draw projectiles
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                const p = projectiles[i];
+                p.x += p.vx; p.y += p.vy;
+                
+                let deflected = false;
+                // Check deflection from Local Shield
+                if (myWave && (Date.now() - myWave.startTime < 4000)) {
+                    const shieldRadius = ((Date.now() - myWave.startTime) / 4000) * 250;
+                    if (Math.hypot(p.x - localCenterX, p.y - localCenterY) < shieldRadius) deflected = true;
+                }
+                
+                // Check deflection from Remote Shields
+                Object.values(otherWindows).forEach(win => {
+                    if (win.wave && (Date.now() - win.wave.startTime < 4000)) {
+                        const shieldRadius = ((Date.now() - win.wave.startTime) / 4000) * 250;
+                        if (Math.hypot(p.x - win.x, p.y - win.y) < shieldRadius) deflected = true;
+                    }
+                });
+
+                if (deflected) { projectiles.splice(i, 1); continue; }
+                if (Date.now() - p.startTime > 4000) { projectiles.splice(i, 1); continue; }
+                
+                drawProjectile(p);
+                
+                let projectileConsumed = false;
+                if (p.ownerId === windowId) {
+                    // Check Asteroid Hits
+                    for (const [astId, ast] of asteroids.entries()) {
+                        if (Math.hypot(p.x - ast.x, p.y - ast.y) < ast.size) {
+                            // Projectile hits asteroid: broadcast hit, projectile is consumed
+                            projectiles.splice(i, 1);
+                            projectileConsumed = true;
+                            break; 
+                        }
+                    }
+
+                    if (projectileConsumed) continue;
+
+                    Object.entries(otherWindows).forEach(([id, win]) => {
+                        if (!projectileConsumed && Math.hypot(p.x - win.x, p.y - win.y) < 40) {
+                            // Attacker check: Ensure target isn't currently shielded before broadcasting hit
+                            if (win.wave && (Date.now() - win.wave.startTime < 4000)) return;
+                            
+                            broadcast({ type: 'projectile_hit', targetId: id, attackerId: windowId });
+                            
+                            // Apply damage to opponent particle pool
+                            if (otherWindows[id]) {
+                                otherWindows[id].particles = Math.max(0, (otherWindows[id].particles || 0) - 20);
+                            }
+                            
+                            score += 30; // Reduced for player combat, encouraged for co-op
+                            document.getElementById('scoreDisplay').textContent = score;
+                            projectiles.splice(i, 1);
+                            projectileConsumed = true;
+                        }
+                    });
+                }
+            }
+
+            manageGameFlow();
+
+            // Update and draw asteroids
+            asteroids.forEach((ast, astId) => { // Iterate over Map values
+                ast.update(localCenterX, localCenterY);
+
+                // Check for Shield Deflection
+                let deflectorPos = null;
+                // Local Shield check
+                if (myWave && (Date.now() - myWave.startTime < 4000)) {
+                    const r = (Date.now() - myWave.startTime) / 4000 * 250;
+                    if (Math.hypot(ast.x - localCenterX, ast.y - localCenterY) < r + ast.size) deflectorPos = {x: localCenterX, y: localCenterY};
+                }
+                // Remote Shields check
+                if (!deflectorPos) {
+                    for (const win of Object.values(otherWindows)) {
+                        if (win.wave && (Date.now() - win.wave.startTime < 4000)) {
+                            const r = (Date.now() - win.wave.startTime) / 4000 * 250;
+                            if (Math.hypot(ast.x - win.x, ast.y - win.y) < r + ast.size) { deflectorPos = {x: win.x, y: win.y}; break; }
+                        }
+                    }
+                }
+
+                if (deflectorPos) {
+                    const angle = Math.atan2(ast.y - deflectorPos.y, ast.x - deflectorPos.x);
+                    ast.x += Math.cos(angle) * 300; // Push far away
+                    ast.y += Math.sin(angle) * 300;
+                    broadcast({ type: 'asteroid_hit', asteroidId: astId, damage: 5, attackerId: windowId });
+                    screenShake = 15;
+                }
+
+                ast.draw(ctx);
+                if (Math.hypot(ast.x - localCenterX, ast.y - localCenterY) < ast.size + 20) {
+                    screenShake = 20;
+                    
+                    // Collision drains particles (health) and damages asteroid
+                    currentParticles = Math.max(0, currentParticles - 5);
+                    broadcast({ type: 'asteroid_hit', asteroidId: astId, damage: 0.5, attackerId: windowId });
+
+                    nodeVX += (localCenterX - ast.x) * 0.5;
+                    nodeVY += (localCenterY - ast.y) * 0.5;
+                }
+            });
+
+            // Draw local protective wave
+            if (myWave) drawWave(localCenterX, localCenterY, myWave.startTime, windowHue);
+
+            // 2. Process Remote Systems
+            const remoteIds = Object.keys(otherWindows);
+            remoteIds.forEach((id, index) => {
                 const win = otherWindows[id];
                 const particles = getOrCreateSystem(id);
-
-                particles.forEach(p => {
-                    p.update(win.x, win.y, win.vx, win.vy, allCenters);
-                    ctx.fillStyle = 'rgba(0, 212, 255, 0.6)';
-                    ctx.beginPath();
-                    ctx.arc(p.x - window.screenX, p.y - window.screenY, p.size, 0, Math.PI * 2);
-                    ctx.fill();
-                });
+                drawSystem(particles, win.x, win.y, win.vx, win.vy, allCenters, allMice, win.hue, true, win.particles || particleCount);
 
                 const relX = win.x - window.screenX;
                 const relY = win.y - window.screenY;
-                drawCore(relX, relY, 'rgba(0, 212, 255, 0.4)');
+                drawCore(relX, relY, `hsla(${win.hue}, 100%, 50%, 0.4)`, coreScale * 0.8);
+
+                // Draw remote waves
+                if (win.wave) drawWave(win.x, win.y, win.wave.startTime, win.hue);
 
                 // Draw Tendril between Local and this Remote
-                ctx.strokeStyle = 'rgba(0, 212, 255, 0.2)';
-                ctx.lineWidth = 1;
+                ctx.strokeStyle = `hsla(${win.hue}, 100%, 50%, 0.2)`;
+                ctx.lineWidth = 1 + combo;
                 ctx.beginPath();
                 ctx.moveTo(localCenterX - window.screenX, localCenterY - window.screenY);
-                const cpX = (localCenterX + win.x) / 2 - window.screenX + (Math.sin(Date.now() / 200) * 30);
-                const cpY = (localCenterY + win.y) / 2 - window.screenY + (Math.cos(Date.now() / 200) * 30);
+                const cpX = (localCenterX + win.x) / 2 - window.screenX + (Math.sin(time * 2 + windowHue + win.hue) * 40);
+                const cpY = (localCenterY + win.y) / 2 - window.screenY + (Math.cos(time * 1.5 + windowHue + win.hue) * 40);
                 ctx.quadraticCurveTo(cpX, cpY, relX, relY);
                 ctx.stroke();
+
+                // Draw Tendrils between this Remote and other Remote windows
+                for (let j = index + 1; j < remoteIds.length; j++) {
+                    const win2 = otherWindows[remoteIds[j]];
+                    ctx.strokeStyle = `hsla(${win.hue}, 100%, 50%, 0.1)`;
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(relX, relY);
+                    const cpX2 = (win.x + win2.x) / 2 - window.screenX + (Math.sin(time * 2 + win.hue + win2.hue) * 30);
+                    const cpY2 = (win.y + win2.y) / 2 - window.screenY + (Math.cos(time * 1.5 + win.hue + win2.hue) * 30);
+                    ctx.quadraticCurveTo(cpX2, cpY2, win2.x - window.screenX, win2.y - window.screenY);
+                    ctx.stroke();
+                }
             });
+
+            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset shake
 
             // 3. Cleanup stale systems
             for (const id of systems.keys()) {
@@ -242,11 +1066,51 @@
             }
         }
 
+        // Helper to draw a particle system
+        function drawSystem(particles, tx, ty, vx, vy, centers, mice, hue, isRemote = false, activeCount = particleCount) {
+            const opacity = isRemote ? 0.4 : 0.8;
+            const count = Math.floor(activeCount);
+            
+            // Lines between nearby particles (Constellation effect)
+            ctx.beginPath();
+            ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${opacity * 0.3})`;
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < count; i++) {
+                for (let j = i + 1; j < Math.min(i + 5, count); j++) {
+                    const p1 = particles[i];
+                    const p2 = particles[j];
+                    const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                    if (d < connectionDist) {
+                        ctx.moveTo(p1.x - window.screenX, p1.y - window.screenY);
+                        ctx.lineTo(p2.x - window.screenX, p2.y - window.screenY);
+                    }
+                }
+            }
+            ctx.stroke();
+
+            // Update and Draw particles
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                p.update(tx, ty, vx, vy, centers, mice);
+                
+                if (i < count) {
+                    const speed = Math.hypot(p.vx, p.vy);
+                    const lum = Math.min(70 + speed * 3, 95);
+                    ctx.fillStyle = `hsla(${hue}, 100%, ${lum}%, ${opacity})`;                   
+                    ctx.beginPath();
+                    ctx.arc(p.x - window.screenX, p.y - window.screenY, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        // Start the loop
         draw();
 
-        // Broadcast position independently of the render loop to prevent background freezing
+        // Broadcast position independently
         setInterval(broadcastPosition, 16);
 
+        // Periodically clean up players who haven't been seen in 5 seconds
         setInterval(() => {
             const now = Date.now();
             for (const id in otherWindows) {
