@@ -225,20 +225,43 @@
         const nitroCooldown = 20000;
 
         // --- PeerJS Networking ---
-        const peer = new Peer(windowId);
         let connections = [];
+        let peer;
 
-        peer.on('open', id => {
-            document.getElementById('myPeerId').textContent = id;
-        });
+        async function initializePeer() {
+            let iceServers = [];
+            
+            try {
+                // Ask the secure backend for temporary TURN credentials
+                const response = await fetch('https://your-worker-name.your-username.workers.dev');
+                const data = await response.json();
+                iceServers = data.iceServers;
+            } catch (err) {
+                console.error("Failed to fetch secure TURN credentials, falling back to STUN", err);
+                // Fallback to STUN-only if the worker fails (NATs won't be bypassed, but basic connections will work)
+                iceServers = [{ urls: ["stun:stun.cloudflare.com:3478", "stun:stun.cloudflare.com:53"] }];
+            }
 
-        peer.on('error', err => {
-            if (err.type === 'id-taken') alert('That ID is already in use! Try clicking your ID to change it.');
-        });
+            peer = new Peer(windowId, {
+                config: {
+                    'iceServers': iceServers
+                }
+            });
 
-        peer.on('connection', conn => {
-            setupConnection(conn);
-        });
+            peer.on('open', id => {
+                document.getElementById('myPeerId').textContent = id;
+            });
+
+            peer.on('error', err => {
+                if (err.type === 'id-taken') alert('That ID is already in use! Try clicking your ID to change it.');
+            });
+
+            peer.on('connection', conn => {
+                setupConnection(conn);
+            });
+        }
+        
+        initializePeer();
 
         function connectToPeer() {
             const destId = document.getElementById('destPeerId').value;
@@ -314,8 +337,8 @@
                 if (data.targetId === windowId) {
                     // Check Shield Protection (lasts 4s)
                     if (myWave && Date.now() - myWave.startTime < 4000) return;
-                    // HEALTH DAMAGED: Player loses 500 particles when hit by a projectile
-                    currentParticles = Math.max(0, currentParticles - 10); // Massive damage from projectile
+                    // HEALTH DAMAGED: Player loses 1 particles when hit by a projectile
+                    currentParticles = Math.max(0, currentParticles - 10); // <--- ADJUST HERE: Health you lose when hit by another player's projectile
                     screenShake = 20;
                     document.body.style.backgroundColor = '#500';
                     setTimeout(() => document.body.style.backgroundColor = '#050505', 150);
@@ -324,7 +347,7 @@
                 if (data.targetId === windowId) {
                     if (myWave && Date.now() - myWave.startTime < 4000) return;
                     
-                    currentParticles = Math.max(0, currentParticles - 100); // Siphon damage
+                    currentParticles = Math.max(0, currentParticles - 1); // Siphon damage
                     screenShake = 15;
                     document.body.style.backgroundColor = '#500';
                     setTimeout(() => document.body.style.backgroundColor = '#050505', 100);
@@ -343,24 +366,28 @@
             constructor(x, y, id, points, size) {
                 this.x = x; this.y = y;
                 this.id = id || Math.random().toString(36).substr(2, 9);
-                this.hp = 10;
+                this.hp = 5; // <--- ADJUST HERE: Asteroid initial max health
                 this.size = size; // Use provided size
                 this.points = points; // Use provided points for shape
                 this.rotation = 0;
                 this.rotVel = (Math.random() - 0.5) * 0.05;
                 this.targetHue = Math.random() * 360; // For visual variation
+                this.pushVx = 0;
+                this.pushVy = 0;
             }
             update(tx, ty) {
                 const angle = Math.atan2(ty - this.y, tx - this.x);
-                this.x += Math.cos(angle) * 1.5;
-                this.y += Math.sin(angle) * 1.5;
+                this.x += Math.cos(angle) * 0.75 + this.pushVx; // 1.5 is the base velocity
+                this.y += Math.sin(angle) * 0.75 + this.pushVy; // 1.5 is the base velocity
+                this.pushVx *= 0.9; // Friction for smooth sliding
+                this.pushVy *= 0.9;
                 this.rotation += this.rotVel;
             }
             draw(ctx) {
                 // Flame Trail
                 ctx.globalCompositeOperation = 'lighter';
                 for (let i = 0; i < 5; i++) {
-                    const r = Math.random() * 15;
+                    const r = Math.random() * 55;
                     ctx.fillStyle = `rgba(255, ${Math.random() * 100}, 0, 0.4)`;
                     ctx.beginPath(); // Flame trail
                     ctx.arc(this.x - window.screenX - Math.cos(this.rotation) * 10 + (Math.random() - 0.5) * 10, 
@@ -577,11 +604,11 @@
         function triggerShoot(lCX, lCY) {
             const now = Date.now();
             // Fire rate limit: 700ms between shots
-            if (now - lastShootTime < 250) return; // keep always 250ms fire rate
+            if (now - lastShootTime < 100) return; // keep always 250ms fire rate
             if (currentParticles < 10) return;
             
-            lastShootTime = now;
-            currentParticles = Math.max(0, currentParticles - 5);
+            lastShootTime = now; // Update the timestamp of the last shot to enforce the fire rate limit
+            currentParticles = Math.max(0, currentParticles - 1);
             
             const gxMouse = window.screenX + mousePos.x;
             const gyMouse = window.screenY + mousePos.y;
@@ -723,7 +750,7 @@
             if (screenShake > 0) screenShake *= 0.9;
 
             // Replenish particles over time
-            if (currentParticles < particleCount) currentParticles += 0.02;
+            if (currentParticles < particleCount) currentParticles += 0.01;
 
             // Movement Logic (WASD + Arrows) with Nitro
             const accel = isNitroActive ? 1.2 : 0.3;
@@ -797,7 +824,7 @@
             handleCombatActions(localCenterX, localCenterY);
 
             // --- XP Star System ---
-            if (stars.length < 3 && Date.now() - lastStarSpawn > 3000) {
+            if (stars.length < 3 && Date.now() - lastStarSpawn > 1000) {
                 stars.push({
                     x: window.screenX + Math.random() * canvas.width,
                     y: window.screenY + Math.random() * canvas.height,
@@ -825,7 +852,7 @@
                 // Collection check
                 if (Math.hypot(s.x - localCenterX, s.y - localCenterY) < 40) {
                     score += 30;
-                    currentParticles = Math.min(particleCount, currentParticles + 100);
+                    currentParticles = Math.min(particleCount, currentParticles + 10);
                     document.getElementById('scoreDisplay').textContent = score;
                     stars.splice(i, 1);
                 }
@@ -845,6 +872,18 @@
                     nodeVX += Math.cos(angle) * pushForce;
                     nodeVY += Math.sin(angle) * pushForce;
                     // We don't apply damage or XP here as requested
+                }
+                
+                // Smoothly slide away from opponents' active shields
+                if (win.wave && (Date.now() - win.wave.startTime < 4000)) {
+                    const shieldRadius = ((Date.now() - win.wave.startTime) / 4000) * 250;
+                    const coreRadius = 30 * coreScale;
+                    if (dist < shieldRadius + coreRadius) {
+                        const overlap = (shieldRadius + coreRadius) - dist;
+                        const angle = Math.atan2(dy, dx);
+                        nodeVX += Math.cos(angle) * overlap * 0.05; 
+                        nodeVY += Math.sin(angle) * overlap * 0.05;
+                    }
                 }
             });
 
@@ -876,7 +915,8 @@
                 for (const [astId, ast] of asteroids.entries()) {
                     if (Math.hypot(p.x - ast.x, p.y - ast.y) < ast.size) {
                         // Particle hits asteroid: broadcast hit, particle is consumed
-                        broadcast({ type: 'asteroid_hit', asteroidId: astId, damage: 0.5, attackerId: windowId }); // Particle damage
+                        const hit = { type: 'asteroid_hit', asteroidId: astId, damage: 1, attackerId: windowId }; // <--- ADJUST HERE: Damage your orbiting particles deal to asteroids
+                        broadcast(hit); handleIncomingData(hit);
                         particleHit = true;
                         break;
                     }
@@ -896,7 +936,7 @@
                 }
 
                 if (particleHit) {
-                    currentParticles = Math.max(0, currentParticles - 1);
+                    currentParticles = Math.max(0, currentParticles - 5); // <--- ADJUST HERE: Health you lose when one of your orbiting particles crashes into an asteroid
                     activeCount--;
                     i--; // Check the particle swapped into this position
                 }
@@ -936,6 +976,8 @@
                     for (const [astId, ast] of asteroids.entries()) {
                         if (Math.hypot(p.x - ast.x, p.y - ast.y) < ast.size) {
                             // Projectile hits asteroid: broadcast hit, projectile is consumed
+                            const hit = { type: 'asteroid_hit', asteroidId: astId, damage: 1, attackerId: windowId }; // <--- ADJUST HERE: Damage a projectile deals to an asteroid
+                            broadcast(hit); handleIncomingData(hit);
                             projectiles.splice(i, 1);
                             projectileConsumed = true;
                             break; 
@@ -953,7 +995,7 @@
                             
                             // Apply damage to opponent particle pool
                             if (otherWindows[id]) {
-                                otherWindows[id].particles = Math.max(0, (otherWindows[id].particles || 0) - 20);
+                                otherWindows[id].particles = Math.max(0, (otherWindows[id].particles || 0) - 5); // <--- ADJUST HERE: Health another player loses when hit by YOUR projectile
                             }
                             
                             score += 30; // Reduced for player combat, encouraged for co-op
@@ -973,27 +1015,47 @@
 
                 // Check for Shield Deflection
                 let deflectorPos = null;
+                let deflectorRadius = 0;
                 // Local Shield check
                 if (myWave && (Date.now() - myWave.startTime < 4000)) {
                     const r = (Date.now() - myWave.startTime) / 4000 * 250;
-                    if (Math.hypot(ast.x - localCenterX, ast.y - localCenterY) < r + ast.size) deflectorPos = {x: localCenterX, y: localCenterY};
+                    if (Math.hypot(ast.x - localCenterX, ast.y - localCenterY) < r + ast.size) {
+                        deflectorPos = {x: localCenterX, y: localCenterY};
+                        deflectorRadius = r;
+                    }
                 }
                 // Remote Shields check
                 if (!deflectorPos) {
                     for (const win of Object.values(otherWindows)) {
                         if (win.wave && (Date.now() - win.wave.startTime < 4000)) {
                             const r = (Date.now() - win.wave.startTime) / 4000 * 250;
-                            if (Math.hypot(ast.x - win.x, ast.y - win.y) < r + ast.size) { deflectorPos = {x: win.x, y: win.y}; break; }
+                            if (Math.hypot(ast.x - win.x, ast.y - win.y) < r + ast.size) { 
+                                deflectorPos = {x: win.x, y: win.y}; 
+                                deflectorRadius = r;
+                                break; 
+                            }
                         }
                     }
                 }
 
                 if (deflectorPos) {
-                    const angle = Math.atan2(ast.y - deflectorPos.y, ast.x - deflectorPos.x);
-                    ast.x += Math.cos(angle) * 300; // Push far away
-                    ast.y += Math.sin(angle) * 300;
-                    broadcast({ type: 'asteroid_hit', asteroidId: astId, damage: 5, attackerId: windowId });
-                    screenShake = 15;
+                    const dx = ast.x - deflectorPos.x;
+                    const dy = ast.y - deflectorPos.y;
+                    const dist = Math.hypot(dx, dy);
+                    const overlap = (deflectorRadius + ast.size) - dist;
+                    const angle = Math.atan2(dy, dx);
+                    
+                    // Smoothly push asteroid away (builds up momentum)
+                    ast.pushVx = (ast.pushVx || 9) + Math.cos(angle) * overlap * 9; // SHIELD KNOCKBACK: 0.1 is the force multiplier, 0 is the default initial velocity
+                    ast.pushVy = (ast.pushVy || 9) + Math.sin(angle) * overlap * 9; // SHIELD KNOCKBACK: 0.1 is the force multiplier, 0 is the default initial velocity
+
+                    // Throttle the damage application so it isn't dealt every single frame while sliding
+                    if (Date.now() - (ast.lastShieldHit || 0) > 500) {
+                        ast.lastShieldHit = Date.now();
+                        const hit = { type: 'asteroid_hit', asteroidId: astId, damage: 2, attackerId: windowId }; // <--- ADJUST HERE: Damage your shield deals to an asteroid when bouncing it
+                        broadcast(hit); handleIncomingData(hit);
+                        screenShake = 15;
+                    }
                 }
 
                 ast.draw(ctx);
@@ -1001,10 +1063,11 @@
                     screenShake = 20;
                     
                     // Collision drains particles (health) and damages asteroid
-                    currentParticles = Math.max(0, currentParticles - 5);
-                    broadcast({ type: 'asteroid_hit', asteroidId: astId, damage: 0.5, attackerId: windowId });
-
-                    nodeVX += (localCenterX - ast.x) * 0.5;
+                    currentParticles = Math.max(0, currentParticles - 5); // <--- ADJUST HERE: Health you lose when your core crashes into an asteroid
+                    const hit = { type: 'asteroid_hit', asteroidId: astId, damage: 1, attackerId: windowId }; // <--- ADJUST HERE: Damage your core deals to an asteroid when crashing into it
+                    broadcast(hit); handleIncomingData(hit);
+                    // KNOCKBACK: Pushes the player away from the asteroid on collision
+                    nodeVX += (localCenterX - ast.x) * 0.5; 
                     nodeVY += (localCenterY - ast.y) * 0.5;
                 }
             });
