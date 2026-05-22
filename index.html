@@ -233,7 +233,7 @@
             
             try {
                 // Ask the secure backend for temporary TURN credentials
-                const response = await fetch('https://your-worker-name.your-username.workers.dev');
+                const response = await fetch('https://entangled.fayssal-rcz.workers.dev'); // REPLACE THIS WITH YOUR DEPLOYED WORKER URL
                 const data = await response.json();
                 iceServers = data.iceServers;
             } catch (err) {

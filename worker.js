@@ -4,7 +4,7 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
-          "Access-Control-Allow-Origin": "*", // You can lock this down to your GitHub pages URL later
+          "Access-Control-Allow-Origin": "https://fayssalz.github.io/entangled/", // e.g., "https://yourusername.github.io"
           "Access-Control-Allow-Methods": "GET, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
         },
@@ -35,7 +35,7 @@ export default {
     return new Response(JSON.stringify(peerJsConfig), {
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": "https://fayssalz.github.io/entangled/", // e.g., "https://yourusername.github.io"
       },
     });
   },
