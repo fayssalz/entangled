@@ -4,13 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Entangled Nodes</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <style>
+        * { box-sizing: border-box; }
         body {
             transition: background-color 0.2s;
             margin: 0;
             overflow: hidden;
-            background-color: #050505; 
-            font-family: sans-serif;
+            background-color: #050505;
+            font-family: 'Inter', sans-serif;
             color: #eee;
         }
         #windowIdDisplay {
@@ -20,28 +22,55 @@
         canvas {
             display: block;
             position: absolute;
-            top: 0;
-            left: 0;
-            z-index: -1; /* Ensure canvas is behind any potential UI elements */
+            top: 0; left: 0;
+            z-index: -1;
         }
         #info {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border-radius: 5px;
-            font-size: 0.9em;
+            top: 10px; left: 10px;
+            background: rgba(0,0,0,0.55);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 0.8em;
+            border: 1px solid rgba(255,255,255,0.07);
+            backdrop-filter: blur(4px);
+        }
+        #networkToggleBtn {
+            position: absolute;
+            top: 10px; right: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #eee;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.75em;
+            padding: 6px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 110;
+            transition: all 0.2s;
+            backdrop-filter: blur(4px);
+        }
+        #networkToggleBtn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
         }
         #networkUI {
+            display: none;
             position: absolute;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            padding: 10px;
-            border-radius: 5px;
+            top: 50px; right: 10px;
+            background: rgba(10, 10, 15, 0.95);
+            padding: 14px;
+            border-radius: 12px;
             font-size: 0.8em;
-            border: 1px solid #333;
+            border: 1px solid rgba(0, 212, 255, 0.35);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
+            flex-direction: column;
+            gap: 8px;
+            z-index: 105;
+            backdrop-filter: blur(8px);
+        }
+        #networkUI.open {
+            display: flex;
         }
         #networkUI input {
             background: #222;
@@ -57,1136 +86,2411 @@
             color: #000;
             font-weight: bold;
             padding: 3px 7px;
+            border-radius: 3px;
         }
         #hud {
             position: absolute;
-            bottom: 20px;
-            left: 50%;
+            bottom: 20px; left: 50%;
             transform: translateX(-50%);
             text-align: center;
             pointer-events: none;
+            font-family: 'Orbitron', monospace;
         }
         #energyContainer {
-            width: 200px;
-            height: 10px;
-            background: rgba(255, 255, 255, 0.1);
+            width: 200px; height: 10px;
+            background: rgba(255,255,255,0.1);
             border-radius: 5px;
             margin-top: 5px;
         }
         #leftHud {
             position: absolute;
-            bottom: 20px;
-            left: 20px; /* Position to the left */
-            text-align: left; /* Align text within it */
+            bottom: 20px; left: 20px;
+            text-align: left;
             pointer-events: none;
-            width: 150px; /* Smaller width for left bars */
+            width: 160px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.65em;
         }
         .hud-bar-container {
-            width: 100%; /* Take full width of its parent */
-            height: 8px; /* Smaller height */
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 4px; /* Smaller border-radius */
+            width: 100%; height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            margin-bottom: 2px;
         }
         .hud-bar {
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
             border-radius: 4px;
             transition: width 0.1s;
         }
-        /* Specific colors for each bar */
-        #ammoBar { background: #00d4ff; } /* Blue for particles/ammo */
-        #nitroBar { background: #ff00ff; } /* Magenta for nitro */
-        #shieldBar { background: #00ff00; } /* Green for shield */
+        #ammoBar { background: #00d4ff; }
+        #nitroBar { background: #ff00ff; }
+        #shieldBar { background: #00ff00; }
         #energyBar {
-            width: 100%;
-            height: 100%;
+            width: 100%; height: 100%;
             background: #00d4ff;
             border-radius: 5px;
             transition: width 0.1s;
         }
-        #leaderboard {
-            margin-top: 10px;
-        }
+        #leaderboard { margin-top: 10px; font-size: 0.75em; }
         #waveOverlay {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
             font-size: 3em;
             font-weight: bold;
+            font-family: 'Orbitron', monospace;
             color: #ff0044;
-            text-shadow: 0 0 20px rgba(255, 0, 68, 0.5);
+            text-shadow: 0 0 30px rgba(255,0,68,0.7);
             pointer-events: none;
             display: none;
             z-index: 100;
+            animation: wavePulse 0.5s ease-in-out infinite alternate;
+        }
+        @keyframes wavePulse {
+            from { transform: translate(-50%, -50%) scale(1); }
+            to   { transform: translate(-50%, -50%) scale(1.05); }
+        }
+
+        /* ── Coin HUD ── */
+        #coinHud {
+            position: absolute;
+            bottom: 20px; right: 20px;
+            text-align: right;
+            pointer-events: none;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.75em;
+            color: #ffd700;
+        }
+        #coinDisplay {
+            font-size: 1.4em;
+            font-weight: 900;
+            text-shadow: 0 0 12px rgba(255,215,0,0.8);
+        }
+
+        /* ── Power-up HUD ── */
+        #powerupHud {
+            position: absolute;
+            bottom: 80px; right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            pointer-events: none;
+        }
+        .pu-slot {
+            width: 44px; height: 44px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.15);
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.4em;
+            position: relative;
+            transition: box-shadow 0.2s;
+            pointer-events: auto;
+            cursor: pointer;
+        }
+        .pu-slot.ready { border-color: rgba(255,255,255,0.4); box-shadow: 0 0 10px rgba(255,255,255,0.2); }
+        .pu-slot .pu-key {
+            position: absolute;
+            bottom: 2px; right: 3px;
+            font-size: 0.4em;
+            font-family: 'Inter', sans-serif;
+            color: rgba(255,255,255,0.5);
+        }
+        .pu-slot .pu-cd {
+            position: absolute;
+            inset: 0;
+            border-radius: 8px;
+            background: rgba(0,0,0,0.55);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6em;
+            font-family: 'Inter', sans-serif;
+            color: #fff;
+        }
+
+        /* ── Upgrade Shop ── */
+        #shop {
+            display: none;
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+        }
+        #shop.open { display: flex; }
+        #shopInner {
+            background: rgba(10,10,20,0.95);
+            border: 1px solid rgba(0,212,255,0.3);
+            border-radius: 16px;
+            padding: 20px;
+            width: 640px;
+            max-width: 95vw;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        #shopInner h2 {
+            margin: 0 0 6px;
+            font-family: 'Orbitron', monospace;
+            font-size: 1.6em;
+            color: #00d4ff;
+            text-shadow: 0 0 20px rgba(0,212,255,0.5);
+        }
+        #shopCoins {
+            font-family: 'Orbitron', monospace;
+            color: #ffd700;
+            font-size: 1em;
+            margin-bottom: 20px;
+        }
+        .shop-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .upgrade-card {
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .upgrade-card:hover {
+            background: rgba(0,212,255,0.08);
+            border-color: rgba(0,212,255,0.4);
+            transform: translateY(-2px);
+        }
+        .upgrade-card .uname {
+            font-family: 'Orbitron', monospace;
+            font-size: 0.85em;
+            color: #00d4ff;
+            margin-bottom: 4px;
+        }
+        .upgrade-card .udesc {
+            font-size: 0.75em;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 8px;
+            line-height: 1.4;
+        }
+        .upgrade-card .ulevel {
+            font-size: 0.7em;
+            color: #ffd700;
+            font-family: 'Orbitron', monospace;
+        }
+        .upgrade-card .uprice {
+            float: right;
+            font-size: 0.75em;
+            color: #ffd700;
+        }
+        .upgrade-card.maxed {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        #shopClose {
+            margin-top: 18px;
+            padding: 10px 28px;
+            background: #00d4ff;
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            font-family: 'Orbitron', monospace;
+            font-weight: 700;
+            font-size: 0.9em;
+            cursor: pointer;
+            pointer-events: all;
+        }
+        #shopClose:hover { background: #33ddff; }
+
+        /* ── Kill Streak Banner ── */
+        #streakBanner {
+            position: absolute;
+            top: 80px; left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', monospace;
+            font-size: 1.8em;
+            font-weight: 900;
+            pointer-events: none;
+            z-index: 150;
+            opacity: 0;
+            transition: opacity 0.3s;
+            text-align: center;
+        }
+
+        /* ── Low-health warning ── */
+        #lowHealthRing {
+            position: absolute;
+            inset: 0;
+            border: 8px solid rgba(255,0,0,0);
+            pointer-events: none;
+            z-index: 50;
+            transition: border-color 0.3s;
+        }
+
+        /* Kill streak anim */
+        @keyframes streakIn {
+            0%   { opacity: 0; transform: translateX(-50%) scale(0.7); }
+            20%  { opacity: 1; transform: translateX(-50%) scale(1.1); }
+            80%  { opacity: 1; transform: translateX(-50%) scale(1); }
+            100% { opacity: 0; transform: translateX(-50%) scale(0.9); }
+        }
+
+        #tabHint {
+            position: absolute;
+            bottom: 20px; left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', monospace;
+            font-size: 0.65em;
+            color: rgba(255,255,255,0.25);
+            pointer-events: none;
+        }
+
+        /* ── Control-mode toggle ── */
+        #modeToggle {
+            position: absolute;
+            top: 92px; left: 50%;
+            transform: translateX(-50%);
+            pointer-events: all;
+            display: flex;
+            gap: 0;
+            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.12);
+            font-family: 'Orbitron', monospace;
+            font-size: 0.55em;
+            z-index: 60;
+            backdrop-filter: blur(4px);
+        }
+        .mode-btn {
+            padding: 4px 12px;
+            cursor: pointer;
+            background: rgba(0,0,0,0.5);
+            color: rgba(255,255,255,0.35);
+            border: none;
+            transition: all 0.2s;
+            letter-spacing: 1px;
+            user-select: none;
+        }
+        .mode-btn.active {
+            background: rgba(0,212,255,0.18);
+            color: #00d4ff;
+            text-shadow: 0 0 8px #00d4ff;
+        }
+        .mode-btn:hover { color: rgba(255,255,255,0.7); }
+
+        /* ── Fever Mode HUD ── */
+        #feverHud {
+            position: absolute;
+            top: 10px; left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            pointer-events: none;
+            font-family: 'Orbitron', monospace;
+            width: 220px;
+        }
+        #feverLabel {
+            font-size: 0.65em;
+            color: rgba(255,200,50,0.7);
+            letter-spacing: 2px;
+            margin-bottom: 3px;
+        }
+        #feverBarContainer {
+            width: 100%; height: 8px;
+            background: rgba(255,255,255,0.08);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        #feverBar {
+            height: 100%;
+            width: 0%;
+            border-radius: 4px;
+            background: linear-gradient(90deg, #ff6600, #ff0044, #ff00cc);
+            transition: width 0.15s;
+            box-shadow: 0 0 10px #ff4400;
+        }
+        #feverBar.full {
+            background: linear-gradient(90deg, #ffcc00, #ff4400, #ff00cc, #ffcc00);
+            animation: feverPulse 0.3s ease-in-out infinite alternate;
+        }
+        @keyframes feverPulse {
+            from { box-shadow: 0 0 10px #ff4400; }
+            to   { box-shadow: 0 0 25px #ffcc00, 0 0 40px #ff4400; }
+        }
+        #feverActive {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 45;
+            border: 4px solid transparent;
+            animation: none;
+        }
+        #feverActive.on {
+            border-color: rgba(255, 100, 0, 0.4);
+            animation: feverRing 0.4s ease-in-out infinite alternate;
+        }
+        @keyframes feverRing {
+            from { border-color: rgba(255,100,0,0.2); box-shadow: inset 0 0 60px rgba(255,60,0,0.08); }
+            to   { border-color: rgba(255,200,0,0.6); box-shadow: inset 0 0 100px rgba(255,120,0,0.2); }
+        }
+        /* ── Wave Info ── */
+        #waveInfo {
+            position: absolute;
+            top: 58px; left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Orbitron', monospace;
+            font-size: 0.6em;
+            color: rgba(255,255,255,0.35);
+            pointer-events: none;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        /* ── Shop HUD Button ── */
+        #hudShopBtn {
+            margin-top: 5px;
+            background: rgba(0, 212, 255, 0.1);
+            border: 1px solid rgba(0, 212, 255, 0.4);
+            color: #00d4ff;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.8em;
+            font-weight: bold;
+            padding: 4px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            pointer-events: auto;
+            display: inline-block;
+        }
+        #hudShopBtn:hover {
+            background: rgba(0, 212, 255, 0.25);
+            box-shadow: 0 0 8px rgba(0, 212, 255, 0.5);
+        }
+
+        /* ── Mobile Controls Overlay ── */
+        .mobile-controls {
+            display: none;
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 100;
+        }
+        
+        .mobile-device .mobile-controls {
+            display: block;
+        }
+        
+        /* Left Joystick */
+        .joystick-container {
+            position: absolute;
+            bottom: 40px;
+            left: 40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            border-radius: 50%;
+            pointer-events: auto;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+            touch-action: none;
+        }
+        .joystick-handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle, rgba(0, 212, 255, 0.8) 0%, rgba(0, 100, 200, 0.4) 100%);
+            border: 2px solid rgba(0, 212, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(0, 212, 255, 0.4);
+            touch-action: none;
+        }
+        
+        /* Right Joystick */
+        .right-joystick-container {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 2px solid rgba(255, 255, 255, 0.12);
+            border-radius: 50%;
+            pointer-events: auto;
+            backdrop-filter: blur(4px);
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.4);
+            touch-action: none;
+        }
+        .right-joystick-handle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background: radial-gradient(circle, rgba(255, 0, 255, 0.8) 0%, rgba(150, 0, 150, 0.4) 100%);
+            border: 2px solid rgba(255, 0, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(255, 0, 255, 0.4);
+            touch-action: none;
+        }
+        
+        /* Mobile Buttons */
+        .mobile-btn {
+            position: absolute;
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(4px);
+            color: #fff;
+            font-family: 'Orbitron', monospace;
+            font-size: 1.0em;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: auto;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            touch-action: none;
+            user-select: none;
+        }
+        .mobile-btn:active {
+            transform: scale(0.92);
+        }
+        .mobile-btn-shield {
+            bottom: 180px;
+            right: 40px;
+            border-color: rgba(0, 255, 0, 0.4);
+            color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
+        }
+        .mobile-btn-nitro {
+            bottom: 180px;
+            right: 110px;
+            border-color: rgba(255, 0, 255, 0.4);
+            color: #ff00ff;
+            text-shadow: 0 0 5px #ff00ff;
+        }
+        
+        /* ── Mobile Layout Overrides ── */
+        @media (max-width: 768px) {
+            #info {
+                display: none !important;
+            }
+            #tabHint {
+                display: none !important;
+            }
+            #modeToggle {
+                display: none !important;
+            }
+            #powerupHud {
+                flex-direction: row;
+                bottom: 20px;
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                gap: 12px;
+                pointer-events: none;
+            }
+            .pu-slot {
+                width: 48px;
+                height: 48px;
+                border-radius: 10px;
+            }
+            #hud {
+                top: 20px;
+                bottom: auto;
+                left: 50%;
+                transform: translateX(-50%);
+            }
+            #coinHud {
+                top: 20px;
+                bottom: auto;
+                right: 20px;
+                text-align: right;
+            }
+            .shop-grid {
+                grid-template-columns: 1fr;
+            }
+            #shopInner {
+                padding: 16px;
+            }
         }
     </style>
 </head>
 <body>
     <div id="info">
-        <b>WASD/Arrows</b>: Move | <b>Click</b>: Shoot | <b>Space</b>: Shield | <b>Shift</b>: Nitro
-        Window ID: <span id="windowIdDisplay" title="Click to change ID" style="cursor: pointer; text-decoration: underline dotted;"></span>
+        <b>WASD/Arrows</b>: Move &nbsp;|&nbsp; <b>Click</b>: Shoot &nbsp;|&nbsp; <b>Space</b>: Shield &nbsp;|&nbsp; <b>Shift</b>: Nitro<br>
+        <b>1</b>: Black Hole &nbsp;|&nbsp; <b>2</b>: Overload Burst &nbsp;|&nbsp; <b>3</b>: Magnet &nbsp;|&nbsp; <b>Tab</b>: Shop &nbsp;|&nbsp; <b>F</b>: Mode<br>
+        Window ID: <span id="windowIdDisplay" title="Click to change ID" style="cursor:pointer;text-decoration:underline dotted;" onclick="changeId()"></span>
     </div>
+    <button id="networkToggleBtn" onclick="toggleNetworkPanel()">🌐 MULTIPLAYER</button>
     <div id="networkUI">
-        <div>Your ID: <b id="myPeerId">...</b></div>
+        <div>Your ID: <b id="myPeerId" style="cursor:pointer;text-decoration:underline dotted;" onclick="changeId()" title="Click to change ID">...</b></div>
         <input type="text" id="destPeerId" placeholder="Friend's ID">
         <button onclick="connectToPeer()">CONNECT LAN</button>
     </div>
     <div id="leftHud">
-        <div style="font-size: 0.8em;">PARTICLES: <span id="particleDisplay">250</span></div>
+        <div style="margin-bottom:2px;">PARTICLES: <span id="particleDisplay">250</span></div>
         <div id="ammoContainer" class="hud-bar-container"><div id="ammoBar" class="hud-bar"></div></div>
-
-        <div style="font-size: 0.8em; margin-top: 5px;">NITRO</div>
-        <div id="nitroContainer" class="hud-bar-container">
-            <div id="nitroBar" class="hud-bar"></div>
-        </div>
-
-        <div style="font-size: 0.8em; margin-top: 5px;">SHIELD</div>
-        <div id="shieldContainer" class="hud-bar-container">
-            <div id="shieldBar" class="hud-bar"></div>
-        </div>
+        <div style="margin-top:5px;margin-bottom:2px;">NITRO</div>
+        <div id="nitroContainer" class="hud-bar-container"><div id="nitroBar" class="hud-bar"></div></div>
+        <div style="margin-top:5px;margin-bottom:2px;">SHIELD</div>
+        <div id="shieldContainer" class="hud-bar-container"><div id="shieldBar" class="hud-bar"></div></div>
+    </div>
+    <div id="coinHud">
+        <div style="font-size:0.7em;opacity:0.6;">COINS</div>
+        <div id="coinDisplay">0</div>
+        <button id="hudShopBtn" onclick="shopOpen ? closeShop() : openShop()">SHOP 🛒</button>
+    </div>
+    <div id="powerupHud">
+        <div class="pu-slot" id="slot1"><span id="slot1icon">⬛</span><span class="pu-key">1</span><div class="pu-cd" id="slot1cd" style="display:none"></div></div>
+        <div class="pu-slot" id="slot2"><span id="slot2icon">⬛</span><span class="pu-key">2</span><div class="pu-cd" id="slot2cd" style="display:none"></div></div>
+        <div class="pu-slot" id="slot3"><span id="slot3icon">⬛</span><span class="pu-key">3</span><div class="pu-cd" id="slot3cd" style="display:none"></div></div>
     </div>
     <div id="waveOverlay">WAVE 1 STARTING...</div>
+    <div id="feverHud">
+        <div id="feverLabel">🔥 FEVER</div>
+        <div id="feverBarContainer"><div id="feverBar"></div></div>
+    </div>
+    <div id="feverActive"></div>
+    <div id="waveInfo"></div>
+    <!-- Control Mode Toggle -->
+    <div id="modeToggle">
+        <button class="mode-btn active" id="modeBtn1" onclick="setControlMode(1)" title="WASD + Click to shoot">🎮 WASD</button>
+        <button class="mode-btn"        id="modeBtn2" onclick="setControlMode(2)" title="Mouse follow + Ctrl to shoot">🖱 CURSOR</button>
+    </div>
     <div id="hud">
-        <div>SCORE: <span id="scoreDisplay">0</span></div>
-        <div id="comboDisplay" style="color: #ffcc00; font-weight: bold; font-size: 1.2em; height: 1.5em; text-shadow: 0 0 10px rgba(255,204,0,0.5);"></div>
+        <div style="font-family:'Orbitron',monospace;font-size:0.9em;">SCORE: <span id="scoreDisplay">0</span></div>
+        <div id="comboDisplay" style="color:#ffcc00;font-weight:bold;font-size:1.2em;height:1.5em;text-shadow:0 0 10px rgba(255,204,0,0.5);font-family:'Orbitron',monospace;"></div>
         <div id="leaderboard"></div>
     </div>
-    <!-- Load PeerJS for LAN P2P support -->
+    <div id="lowHealthRing"></div>
+    <div id="streakBanner"></div>
+
+    <!-- Mobile Controls -->
+    <div class="mobile-controls">
+        <div class="joystick-container" id="joystickContainer">
+            <div class="joystick-handle" id="joystickHandle"></div>
+        </div>
+        <div class="right-joystick-container" id="rightJoystickContainer">
+            <div class="right-joystick-handle" id="rightJoystickHandle"></div>
+        </div>
+        <div class="mobile-btn mobile-btn-shield" id="btnShield">🛡️</div>
+        <div class="mobile-btn mobile-btn-nitro" id="btnNitro">⚡</div>
+    </div>
+
+    <!-- Upgrade Shop -->
+    <div id="shop">
+        <div id="shopInner">
+            <h2>⚡ UPGRADE SHOP</h2>
+            <div id="shopCoins">🪙 <span id="shopCoinDisplay">0</span> coins available</div>
+            <div class="shop-grid" id="shopGrid"></div>
+            <div style="text-align:center"><button id="shopClose" onclick="closeShop()">CLOSE [TAB]</button></div>
+        </div>
+    </div>
+
+    <div id="tabHint">TAB → UPGRADE SHOP</div>
+
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script>
-        // --- Configuration & State ---
-        const particleCount = 10000; // Increased pool for overcharge mechanics
-        const connectionDist = 80; // Distance to draw lines between particles
+    // ── Mobile & Collapsible UI Configuration ──
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                     ('ontouchstart' in window) || 
+                     (navigator.maxTouchPoints > 0);
+    
+    let joystickInput = { x: 0, y: 0 };
+    let rightJoystickInput = { x: 0, y: 0 };
+    let rightJoystickActive = false;
 
-        // --- Window Synchronization Logic ---
-        const channel = new BroadcastChannel('entangled_nodes');
+    window.toggleNetworkPanel = function() {
+        const el = document.getElementById('networkUI');
+        el.classList.toggle('open');
+    };
 
-        const urlParams = new URLSearchParams(window.location.search);
-        const customId = urlParams.get('id');
-        const adjectives = ['neon', 'solar', 'arctic', 'lunar', 'cosmic', 'atomic', 'plasma', 'void', 'cyber', 'hyper', 'zenith', 'stellar', 'omega', 'delta', 'pulse'];
-        const nouns = ['star', 'node', 'wave', 'core', 'flux', 'grid', 'spark', 'drift', 'link', 'beam', 'vortex', 'aura', 'echo', 'prism', 'orbit'];
-        
-        const windowId = customId || `${adjectives[Math.floor(Math.random() * adjectives.length)]}-${nouns[Math.floor(Math.random() * nouns.length)]}`;
+    if (isMobile) {
+        document.body.classList.add('mobile-device');
+        window.addEventListener('DOMContentLoaded', () => {
+            setupMobileControls();
+        });
+    }
 
-        // Generate a unique hue for this window
-        const windowHue = Math.floor(Math.random() * 360);
-        const windowColor = `hsla(${windowHue}, 100%, 60%, 1)`;
-        
-        document.getElementById('windowIdDisplay').textContent = windowId;
-        document.getElementById('windowIdDisplay').style.color = windowColor;
+    function setupMobileControls() {
+        setupJoystick();
+        setupRightJoystick();
+        setupMobileButtons();
+        setupDynamicThemeColors();
+    }
 
-        window.changeId = function() {
-            const newId = prompt("Enter a custom ID (e.g., your name):", windowId);
-            if (newId) {
-                const sanitized = newId.replace(/[^a-zA-Z0-9-]/g, '').toLowerCase();
-                window.location.search = `?id=${sanitized}`;
+    window.addEventListener('DOMContentLoaded', () => {
+        setupPowerupTouchListeners();
+    });
+
+    function setupPowerupTouchListeners() {
+        const pSlots = [
+            document.getElementById('slot1'),
+            document.getElementById('slot2'),
+            document.getElementById('slot3')
+        ];
+        pSlots.forEach((slot, idx) => {
+            if (slot) {
+                slot.addEventListener('click', (e) => {
+                    activatePowerup(idx);
+                });
+                slot.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    activatePowerup(idx);
+                }, { passive: false });
             }
-        };
+        });
+    }
 
-        let otherWindows = {};
-        let lastWinX = window.screenX;
-        let lastWinY = window.screenY;
-        let winVelX = 0;
-        let winVelY = 0;
-        let mousePos = { x: -1000, y: -1000 };
-
-        // Gamification State
-        let score = 0;
-        const pulseCost = 20;
-        let combo = 1.0;
-        let screenShake = 0;
-
-        // New Kinetic & Combat State
-        let nodeOffX = 0, nodeOffY = 0, nodeVX = 0, nodeVY = 0;
-        const keys = {};
-        let lastShootTime = 0;
-        let lastShieldTime = 0;
-        let projectiles = [];
-        let currentParticles = 250;
-        let isPointerDown = false;
-        let stars = [];
-        let lastStarSpawn = 0;
-         // Wave System State
-        let asteroids = new Map(); // Store by ID
-        let currentWave = 0;
-        let waveStatus = 'waiting'; // 'playing' | 'cooldown'
-        let countdownTime = 0;
-        let lastWaveTick = 0;
-        let myWave = null; // { startTime }
-        let asteroidsToSpawn = 0;
-        let lastSingleSpawnTime = 0;
-
-        // Nitro State
-        let isNitroActive = false;
-        let nitroStartTime = 0;
-        let lastNitroEndTime = Date.now() - 20000;
-        const nitroDuration = 3000;
-        const nitroCooldown = 20000;
-
-        // --- PeerJS Networking ---
-        let connections = [];
-        let peer;
-
-        async function initializePeer() {
-            let iceServers = [];
+    function setupJoystick() {
+        const container = document.getElementById('joystickContainer');
+        const handle = document.getElementById('joystickHandle');
+        if (!container || !handle) return;
+        
+        let touchId = null;
+        const maxRadius = 45;
+        
+        container.addEventListener('touchstart', e => {
+            if (touchId !== null) return;
+            const touch = e.changedTouches[0];
+            touchId = touch.identifier;
+            updateJoystickPosition(touch);
+            e.preventDefault();
+        }, { passive: false });
+        
+        container.addEventListener('touchmove', e => {
+            if (touchId === null) return;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                if (touch.identifier === touchId) {
+                    updateJoystickPosition(touch);
+                    break;
+                }
+            }
+            e.preventDefault();
+        }, { passive: false });
+        
+        function resetJoystick() {
+            touchId = null;
+            joystickInput = { x: 0, y: 0 };
+            handle.style.left = '50%';
+            handle.style.top = '50%';
+        }
+        
+        container.addEventListener('touchend', e => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === touchId) {
+                    resetJoystick();
+                    break;
+                }
+            }
+        });
+        
+        container.addEventListener('touchcancel', e => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === touchId) {
+                    resetJoystick();
+                    break;
+                }
+            }
+        });
+        
+        function updateJoystickPosition(touch) {
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
             
-            try {
-                // Ask the secure backend for temporary TURN credentials
-                const response = await fetch('https://entangled.fayssal-rcz.workers.dev'); // REPLACE THIS WITH YOUR DEPLOYED WORKER URL
-                const data = await response.json();
-                iceServers = data.iceServers;
-            } catch (err) {
-                console.error("Failed to fetch secure TURN credentials, falling back to STUN", err);
-                // Fallback to STUN-only if the worker fails (NATs won't be bypassed, but basic connections will work)
-                iceServers = [{ urls: ["stun:stun.cloudflare.com:3478", "stun:stun.cloudflare.com:53"] }];
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const dist = Math.hypot(dx, dy);
+            
+            if (dist > maxRadius) {
+                dx = (dx / dist) * maxRadius;
+                dy = (dy / dist) * maxRadius;
             }
+            
+            handle.style.left = `calc(50% + ${dx}px)`;
+            handle.style.top = `calc(50% + ${dy}px)`;
+            
+            joystickInput = {
+                x: dx / maxRadius,
+                y: dy / maxRadius
+            };
+        }
+    }
 
-            peer = new Peer(windowId, {
-                config: {
-                    'iceServers': iceServers
+    function setupRightJoystick() {
+        const container = document.getElementById('rightJoystickContainer');
+        const handle = document.getElementById('rightJoystickHandle');
+        if (!container || !handle) return;
+        
+        let touchId = null;
+        const maxRadius = 45;
+        
+        container.addEventListener('touchstart', e => {
+            if (touchId !== null) return;
+            const touch = e.changedTouches[0];
+            touchId = touch.identifier;
+            rightJoystickActive = true;
+            updateRightJoystickPosition(touch);
+            e.preventDefault();
+        }, { passive: false });
+        
+        container.addEventListener('touchmove', e => {
+            if (touchId === null) return;
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                if (touch.identifier === touchId) {
+                    updateRightJoystickPosition(touch);
+                    break;
                 }
-            });
-
-            peer.on('open', id => {
-                document.getElementById('myPeerId').textContent = id;
-            });
-
-            peer.on('error', err => {
-                if (err.type === 'id-taken') alert('That ID is already in use! Try clicking your ID to change it.');
-            });
-
-            peer.on('connection', conn => {
-                setupConnection(conn);
-            });
+            }
+            e.preventDefault();
+        }, { passive: false });
+        
+        function resetRightJoystick() {
+            touchId = null;
+            rightJoystickActive = false;
+            rightJoystickInput = { x: 0, y: 0 };
+            handle.style.left = '50%';
+            handle.style.top = '50%';
         }
         
-        initializePeer();
-
-        function connectToPeer() {
-            const destId = document.getElementById('destPeerId').value;
-            if (destId) setupConnection(peer.connect(destId));
+        container.addEventListener('touchend', e => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === touchId) {
+                    resetRightJoystick();
+                    break;
+                }
+            }
+        });
+        
+        container.addEventListener('touchcancel', e => {
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                if (e.changedTouches[i].identifier === touchId) {
+                    resetRightJoystick();
+                    break;
+                }
+            }
+        });
+        
+        function updateRightJoystickPosition(touch) {
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            
+            let dx = touch.clientX - centerX;
+            let dy = touch.clientY - centerY;
+            const dist = Math.hypot(dx, dy);
+            
+            if (dist > maxRadius) {
+                dx = (dx / dist) * maxRadius;
+                dy = (dy / dist) * maxRadius;
+            }
+            
+            handle.style.left = `calc(50% + ${dx}px)`;
+            handle.style.top = `calc(50% + ${dy}px)`;
+            
+            rightJoystickInput = {
+                x: dx / maxRadius,
+                y: dy / maxRadius
+            };
         }
+    }
 
-        function setupConnection(conn) {
-            connections.push(conn);
-            conn.on('data', data => handleIncomingData(data));
-            conn.on('close', () => {
-                connections = connections.filter(c => c !== conn);
+    function setupMobileButtons() {
+        const btnShield = document.getElementById('btnShield');
+        const btnNitro = document.getElementById('btnNitro');
+        
+        if (btnShield) {
+            btnShield.addEventListener('touchstart', e => {
+                e.preventDefault();
+                const now = Date.now();
+                const shieldCooldown = Math.max(3000, 9000 - shieldCDBonus);
+                if (now - lastShieldTime > shieldCooldown) {
+                    lastShieldTime = now;
+                    myWave = { startTime: now };
+                    broadcast({ type:'shield', id: windowId, startTime: now });
+                }
+            }, { passive: false });
+        }
+        
+        if (btnNitro) {
+            btnNitro.addEventListener('touchstart', e => {
+                e.preventDefault();
+                const now = Date.now();
+                const nitroTotalDur = nitroDuration + nitroDurBonus;
+                if (!isNitroActive && now > lastNitroEndTime + nitroCooldown) {
+                    isNitroActive = true;
+                    nitroStartTime = now;
+                }
+            }, { passive: false });
+        }
+    }
+
+    function setupDynamicThemeColors() {
+        const handleLeft = document.getElementById('joystickHandle');
+        const handleRight = document.getElementById('rightJoystickHandle');
+        const btnShield = document.getElementById('btnShield');
+        const btnNitro = document.getElementById('btnNitro');
+        const hudShopBtn = document.getElementById('hudShopBtn');
+        const networkToggleBtn = document.getElementById('networkToggleBtn');
+        
+        const themeColor = `hsla(${windowHue}, 100%, 60%, 1)`;
+        const themeColorGlow = `hsla(${windowHue}, 100%, 60%, 0.4)`;
+        
+        if (handleLeft) {
+            handleLeft.style.borderColor = themeColor;
+            handleLeft.style.boxShadow = `0 0 10px ${themeColorGlow}`;
+            handleLeft.style.background = `radial-gradient(circle, hsla(${windowHue}, 100%, 60%, 0.8) 0%, hsla(${windowHue}, 100%, 30%, 0.4) 100%)`;
+        }
+        
+        if (hudShopBtn) {
+            hudShopBtn.style.borderColor = themeColor;
+            hudShopBtn.style.color = themeColor;
+            hudShopBtn.style.background = `hsla(${windowHue}, 100%, 60%, 0.08)`;
+        }
+        
+        if (networkToggleBtn) {
+            networkToggleBtn.style.borderColor = `hsla(${windowHue}, 100%, 60%, 0.3)`;
+        }
+    }
+
+    // ═══════════════════════════════════════════
+    //  Configuration & State
+    // ═══════════════════════════════════════════
+    const particleCount  = 10000;
+    const connectionDist = 80;
+
+    // BroadcastChannel for multi-tab sync
+    const channel = new BroadcastChannel('entangled_nodes');
+
+    // Window identity
+    const urlParams = new URLSearchParams(window.location.search);
+    const customId  = urlParams.get('id');
+    const adjectives = ['neon','solar','arctic','lunar','cosmic','atomic','plasma','void','cyber','hyper','zenith','stellar','omega','delta','pulse'];
+    const nouns      = ['star','node','wave','core','flux','grid','spark','drift','link','beam','vortex','aura','echo','prism','orbit'];
+    const windowId   = customId || `${adjectives[Math.floor(Math.random()*adjectives.length)]}-${nouns[Math.floor(Math.random()*nouns.length)]}`;
+
+    const windowHue   = Math.floor(Math.random() * 360);
+    const windowColor = `hsla(${windowHue},100%,60%,1)`;
+    document.getElementById('windowIdDisplay').textContent  = windowId;
+    document.getElementById('windowIdDisplay').style.color  = windowColor;
+
+    window.changeId = function() {
+        const newId = prompt("Enter a custom ID:", windowId);
+        if (newId) window.location.search = `?id=${newId.replace(/[^a-zA-Z0-9-]/g,'').toLowerCase()}`;
+    };
+
+    // ── Core Game State ──
+    let otherWindows = {};
+    let lastWinX = window.screenX, lastWinY = window.screenY;
+    let winVelX = 0, winVelY = 0;
+    let mousePos = { x: -1000, y: -1000 };
+
+    let score          = 0;
+    let combo          = 1.0;
+    let screenShake    = 0;
+    let killStreak     = 0;
+    let lastKillTime   = 0;
+
+    let nodeOffX = 0, nodeOffY = 0, nodeVX = 0, nodeVY = 0;
+    const keys = {};
+    let lastShootTime  = 0;
+    let lastShieldTime = 0;
+    let projectiles    = [];
+    let currentParticles = 250;
+    let isPointerDown  = false;
+    let stars          = [];
+    let lastStarSpawn  = 0;
+
+    // Control Mode: 1 = WASD + click, 2 = cursor follow + Ctrl shoot
+    let controlMode = 1;
+    window.setControlMode = function(m) {
+        controlMode = m;
+        document.getElementById('modeBtn1').classList.toggle('active', m === 1);
+        document.getElementById('modeBtn2').classList.toggle('active', m === 2);
+        const lCX = canvas ? canvas.width/2 + nodeOffX : 0;
+        const lCY = canvas ? canvas.height/2 + nodeOffY : 0;
+        spawnFloatingText(lCX, (canvas ? canvas.height/2 : 300) - 50,
+            m === 1 ? '🎮 WASD MODE' : '🖱 CURSOR MODE', '#00d4ff', 20);
+    };
+
+    // Wave System
+    let asteroids        = new Map();
+    let currentWave      = 0;
+    let waveStatus       = 'waiting';
+    let countdownTime    = 0;
+    let lastWaveTick     = 0;
+    let myWave           = null;
+    let asteroidsToSpawn = 0;
+    let lastSingleSpawnTime = 0;
+    let waveStartTime    = 0;    // for speed-clear bonus
+
+    // Asteroid spawn cap & delay settings (scales with wave)
+    const ASTEROID_MAX_ACTIVE   = 8;          // never more than this on screen at once
+    const SPAWN_DELAY_START     = 1400;        // ms between spawns on wave 1
+    const SPAWN_DELAY_MIN       = 280;         // fastest possible spawn interval
+    const SPAWN_DELAY_STEP      = 60;          // reduce by this many ms per wave
+    function getSpawnDelay() {
+        return Math.max(SPAWN_DELAY_MIN, SPAWN_DELAY_START - (currentWave - 1) * SPAWN_DELAY_STEP);
+    }
+    function getWaveAsteroidCount() {
+        // Wave 1: 6, Wave 2: 9, Wave 3: 13, ... grows ~40% per wave, capped at 60
+        return Math.min(60, Math.round(6 * Math.pow(1.4, currentWave - 1)));
+    }
+
+    // Fever Mode
+    let feverMeter    = 0;        // 0-100
+    let feverActive   = false;
+    let feverStart    = 0;
+    const FEVER_DURATION = 6000; // ms
+    const FEVER_DECAY    = 0.08; // per frame when not killing
+
+    // Nitro
+    let isNitroActive    = false;
+    let nitroStartTime   = 0;
+    let lastNitroEndTime = Date.now() - 20000;
+    const nitroDuration  = 3000;
+    const nitroCooldown  = 12000; // reduced from 20s
+
+    // ── Floating Text Popups ──
+    let floatingTexts = [];
+
+    function spawnFloatingText(lx, ly, text, color = '#ffcc00', size = 18) {
+        floatingTexts.push({ x: lx, y: ly, text, color, size, life: 1.0, vy: -1.8 });
+    }
+
+    // ── Debris Particles ──
+    let debrisParticles = [];
+
+    function spawnDebris(gx, gy, hue, count = 18) {
+        for (let i = 0; i < count; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = 2 + Math.random() * 5;
+            debrisParticles.push({
+                x: gx, y: gy,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: 1.5 + Math.random() * 3,
+                hue, life: 1.0,
+                decay: 0.02 + Math.random() * 0.02
             });
         }
+    }
 
-        function broadcast(data) {
-            channel.postMessage(data); // Local tabs
-            connections.forEach(conn => conn.send(data)); // Remote laptops
-        }
+    // ── Coin System ──
+    let coins = parseInt(localStorage.getItem('entangled_coins') || '0');
+    let coinPickups = []; // { x, y, gx, gy, life, value }
 
-        function broadcastPosition() {
-            // Calculate window velocity for the "fluid" drag effect
-            winVelX = window.screenX - lastWinX;
-            winVelY = window.screenY - lastWinY;
-            lastWinX = window.screenX;
-            lastWinY = window.screenY;
+    function saveCoins() { localStorage.setItem('entangled_coins', coins); }
+    function updateCoinDisplay() {
+        document.getElementById('coinDisplay').textContent = coins;
+        document.getElementById('shopCoinDisplay').textContent = coins;
+    }
+    updateCoinDisplay();
 
-            const position = {
-                type: 'update',
-                id: windowId,
-                hue: windowHue,
-                x: window.screenX + window.innerWidth / 2 + nodeOffX,
-                y: window.screenY + window.innerHeight / 2 + nodeOffY,
-                mouseX: window.screenX + mousePos.x,
-                mouseY: window.screenY + mousePos.y,
-                timestamp: Date.now(),
-                vx: winVelX,
-                vy: winVelY,
-                score: score,
-                particles: currentParticles
-            };
-            broadcast(position);
-        }
+    // ── Upgrades ──
+    const upgradeDefs = [
+        { id: 'fireRate',      name: 'NEURAL TRIGGER',  desc: 'Faster firing speed.  Each level −15ms cooldown.',       maxLevel: 5, baseCost: 80,  costMult: 1.8, effect: (lvl) => { fireRateBonus = lvl * 15; } },
+        { id: 'regenRate',     name: 'FLUX REGEN',      desc: 'Faster particle regeneration. Each level ×1.5 rate.',    maxLevel: 5, baseCost: 60,  costMult: 1.8, effect: (lvl) => { regenBonus = lvl * 0.04; } },
+        { id: 'shieldCD',      name: 'KINETIC BARRIER', desc: 'Reduced shield cooldown. Each level −1s cooldown.',      maxLevel: 4, baseCost: 100, costMult: 2.0, effect: (lvl) => { shieldCDBonus = lvl * 1000; } },
+        { id: 'nitroBoost',    name: 'OVERDRIVE CORE',  desc: 'Longer nitro burn. Each level +0.5s duration.',          maxLevel: 4, baseCost: 120, costMult: 2.0, effect: (lvl) => { nitroDurBonus = lvl * 500; } },
+        { id: 'magnetRange',   name: 'GRAVITY WELL',    desc: 'Collect stars & coins from farther away.',               maxLevel: 4, baseCost: 70,  costMult: 1.7, effect: (lvl) => { magnetRangeBonus = lvl * 20; } },
+        { id: 'particleMax',   name: 'VOID EXPANSE',    desc: 'Increase max active particles. Each level +20 base.',    maxLevel: 5, baseCost: 150, costMult: 2.2, effect: (lvl) => { particleMaxBonus = lvl * 20; } },
+    ];
+    let upgradelevels = JSON.parse(localStorage.getItem('entangled_upgrades') || '{}');
+    let fireRateBonus    = 0;
+    let regenBonus       = 0;
+    let shieldCDBonus    = 0;
+    let nitroDurBonus    = 0;
+    let magnetRangeBonus = 0;
+    let particleMaxBonus = 0;
 
-        function handleIncomingData(data) {
-            if (data.id === windowId) return;
-            if (data.type === 'close') {
-                delete otherWindows[data.id];
-            } else if (data.type === 'pulse') {
-                applyPulse(data.x, data.y, false);
-            } else if (data.type === 'shoot') {
-                projectiles.push(data.projectile);
-            } else if (data.type === 'shield') {
-                if (otherWindows[data.id]) otherWindows[data.id].wave = { startTime: data.startTime };
-            } else if (data.type === 'asteroid_spawn') {
-                const ast = new Asteroid(data.x, data.y, data.id, data.points, data.size);
-                asteroids.set(ast.id, ast);
-            } else if (data.type === 'asteroid_hit') {
-                const ast = asteroids.get(data.asteroidId);
-                if (ast) {
-                    ast.hp -= data.damage; // DAMAGE RECEIVED: Reduces asteroid HP by the damage amount (usually 1)
-                    if (ast.hp <= 0) {
-                        if (data.attackerId === windowId) score += 5000;
-                        asteroids.delete(data.asteroidId);
-                        screenShake = 10;
+    function applyAllUpgrades() {
+        upgradeDefs.forEach(u => {
+            const lvl = upgradelevels[u.id] || 0;
+            u.effect(lvl);
+        });
+    }
+    applyAllUpgrades();
+
+    function getUpgradeCost(def) {
+        const lvl = upgradelevels[def.id] || 0;
+        return Math.floor(def.baseCost * Math.pow(def.costMult, lvl));
+    }
+
+    function buildShopUI() {
+        const grid = document.getElementById('shopGrid');
+        grid.innerHTML = '';
+        upgradeDefs.forEach(def => {
+            const lvl = upgradelevels[def.id] || 0;
+            const maxed = lvl >= def.maxLevel;
+            const cost = maxed ? 0 : getUpgradeCost(def);
+            const dots = Array.from({length: def.maxLevel}, (_,i) => i < lvl ? '●' : '○').join(' ');
+            const card = document.createElement('div');
+            card.className = 'upgrade-card' + (maxed ? ' maxed' : '');
+            card.innerHTML = `
+                <div class="uname">${def.name} <span class="uprice">${maxed ? 'MAX' : `🪙 ${cost}`}</span></div>
+                <div class="udesc">${def.desc}</div>
+                <div class="ulevel">Level ${lvl}/${def.maxLevel} &nbsp; ${dots}</div>
+            `;
+            if (!maxed) {
+                card.onclick = () => {
+                    if (coins >= cost) {
+                        coins -= cost;
+                        upgradelevels[def.id] = lvl + 1;
+                        localStorage.setItem('entangled_upgrades', JSON.stringify(upgradelevels));
+                        saveCoins();
+                        applyAllUpgrades();
+                        updateCoinDisplay();
+                        buildShopUI();
+                        spawnFloatingText(canvas.width/2, canvas.height/2 - 40, `✦ ${def.name} UPGRADED`, '#00d4ff', 20);
+                    } else {
+                        spawnFloatingText(canvas.width/2, canvas.height/2 - 40, 'NOT ENOUGH COINS', '#ff4444', 18);
                     }
-                }
-            } else if (data.type === 'wave_update') {
-                currentWave = data.wave;
-                waveStatus = data.status;
-                countdownTime = data.countdown;
-                updateWaveUI();
-            } else if (data.type === 'projectile_hit') {
-                if (data.targetId === windowId) {
-                    // Check Shield Protection (lasts 4s)
-                    if (myWave && Date.now() - myWave.startTime < 4000) return;
-                    // HEALTH DAMAGED: Player loses 1 particles when hit by a projectile
-                    currentParticles = Math.max(0, currentParticles - 10); // <--- ADJUST HERE: Health you lose when hit by another player's projectile
-                    screenShake = 20;
-                    document.body.style.backgroundColor = '#500';
-                    setTimeout(() => document.body.style.backgroundColor = '#050505', 150);
-                }
-            } else if (data.type === 'siphon') {
-                if (data.targetId === windowId) {
-                    if (myWave && Date.now() - myWave.startTime < 4000) return;
-                    
-                    currentParticles = Math.max(0, currentParticles - 1); // Siphon damage
-                    screenShake = 15;
-                    document.body.style.backgroundColor = '#500';
-                    setTimeout(() => document.body.style.backgroundColor = '#050505', 100);
-                }
-            } else {
-                const { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, wave, timestamp, particles: remoteParticles } = data;
-                otherWindows[id] = { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, lastSeen: Date.now(), wave, timestamp, particles: remoteParticles };
-                updateLeaderboard();
+                };
             }
+            grid.appendChild(card);
+        });
+    }
+    buildShopUI();
+
+    let shopOpen = false;
+    function openShop() {
+        shopOpen = true;
+        document.getElementById('shop').classList.add('open');
+        buildShopUI();
+        updateCoinDisplay();
+    }
+    window.closeShop = function() {
+        shopOpen = false;
+        document.getElementById('shop').classList.remove('open');
+    };
+
+    // ── Power-up System ──
+    const POWERUP_TYPES = {
+        blackhole: { emoji: '🕳️', color: '#8800ff', name: 'BLACK HOLE',     cd: 15000 },
+        burst:     { emoji: '💥', color: '#ff4400', name: 'OVERLOAD BURST', cd: 20000 },
+        magnet:    { emoji: '🧲', color: '#00ffcc', name: 'MAGNET',         cd: 12000 },
+    };
+
+    // Player's equipped power-ups (slots 1-3)
+    let powerupSlots = [
+        { type: null, lastUsed: 0 },
+        { type: null, lastUsed: 0 },
+        { type: null, lastUsed: 0 },
+    ];
+
+    // Active power-up effects
+    let activeBlackhole = null; // { x, y, startTime }
+    let activeMagnet    = null; // { startTime }
+    let activeBurst     = null; // { startTime, lx, ly }
+
+    // Droppable pickups on the field
+    let powerupPickups = []; // { type, gx, gy, startTime }
+
+    function activatePowerup(slotIdx) {
+        const slot = powerupSlots[slotIdx];
+        if (!slot.type) return;
+        const def = POWERUP_TYPES[slot.type];
+        const now = Date.now();
+        if (now - slot.lastUsed < def.cd) return;
+
+        const lCX = canvas.width/2 + nodeOffX;
+        const lCY = canvas.height/2 + nodeOffY;
+        const gCX = window.screenX + lCX;
+        const gCY = window.screenY + lCY;
+
+        if (slot.type === 'blackhole') {
+            activeBlackhole = { x: gCX, y: gCY, startTime: now };
+            spawnFloatingText(lCX, lCY - 50, '🕳️ BLACK HOLE!', '#8800ff', 22);
+        } else if (slot.type === 'burst') {
+            activeBurst = { startTime: now, lx: lCX, ly: lCY };
+            // Massive shockwave kills nearby asteroids
+            for (const [astId, ast] of asteroids.entries()) {
+                const d = Math.hypot(ast.x - gCX, ast.y - gCY);
+                if (d < 350) {
+                    const dmg = Math.ceil(5 * (1 - d/350));
+                    const hit = { type: 'asteroid_hit', asteroidId: astId, damage: dmg, attackerId: windowId };
+                    broadcast(hit); handleIncomingData(hit);
+                    spawnDebris(ast.x, ast.y, Math.random()*360, 10);
+                }
+            }
+            screenShake = 25;
+            spawnFloatingText(lCX, lCY - 50, '💥 OVERLOAD!', '#ff4400', 24);
+        } else if (slot.type === 'magnet') {
+            activeMagnet = { startTime: now };
+            spawnFloatingText(lCX, lCY - 50, '🧲 MAGNET!', '#00ffcc', 22);
         }
 
-        channel.onmessage = (event) => handleIncomingData(event.data);
+        // Clear slot after use — must pick up a new drop to refill it
+        slot.type = null;
+        slot.lastUsed = now; // record when it was last used (for display purposes)
+    }
 
-        // --- Asteroid Logic ---
-        class Asteroid {
-            constructor(x, y, id, points, size) {
-                this.x = x; this.y = y;
-                this.id = id || Math.random().toString(36).substr(2, 9);
-                this.hp = 5; // <--- ADJUST HERE: Asteroid initial max health
-                this.size = size; // Use provided size
-                this.points = points; // Use provided points for shape
-                this.rotation = 0;
-                this.rotVel = (Math.random() - 0.5) * 0.05;
-                this.targetHue = Math.random() * 360; // For visual variation
-                this.pushVx = 0;
-                this.pushVy = 0;
+    function updatePowerupSlotsUI() {
+        const now = Date.now();
+        for (let i = 0; i < 3; i++) {
+            const slot = powerupSlots[i];
+            const slotEl  = document.getElementById(`slot${i+1}`);
+            const iconEl  = document.getElementById(`slot${i+1}icon`);
+            const cdEl    = document.getElementById(`slot${i+1}cd`);
+            if (!slot.type) {
+                iconEl.textContent = '⬛';
+                slotEl.classList.remove('ready');
+                cdEl.style.display = 'none';
+                continue;
             }
-            update(tx, ty) {
-                const angle = Math.atan2(ty - this.y, tx - this.x);
-                this.x += Math.cos(angle) * 0.75 + this.pushVx; // 1.5 is the base velocity
-                this.y += Math.sin(angle) * 0.75 + this.pushVy; // 1.5 is the base velocity
-                this.pushVx *= 0.9; // Friction for smooth sliding
-                this.pushVy *= 0.9;
-                this.rotation += this.rotVel;
+            const def = POWERUP_TYPES[slot.type];
+            iconEl.textContent = def.emoji;
+            const elapsed = now - slot.lastUsed;
+            if (elapsed >= def.cd) {
+                slotEl.classList.add('ready');
+                cdEl.style.display = 'none';
+            } else {
+                slotEl.classList.remove('ready');
+                cdEl.style.display = 'flex';
+                cdEl.textContent = Math.ceil((def.cd - elapsed)/1000) + 's';
             }
-            draw(ctx) {
-                // Flame Trail
-                ctx.globalCompositeOperation = 'lighter';
-                for (let i = 0; i < 5; i++) {
-                    const r = Math.random() * 55;
-                    ctx.fillStyle = `rgba(255, ${Math.random() * 100}, 0, 0.4)`;
-                    ctx.beginPath(); // Flame trail
-                    ctx.arc(this.x - window.screenX - Math.cos(this.rotation) * 10 + (Math.random() - 0.5) * 10, 
-                            this.y - window.screenY - Math.sin(this.rotation) * 10 + (Math.random() - 0.5) * 10, r, 0, Math.PI * 2);
+        }
+    }
+
+    // ── Kill Streak ──
+    const streakMessages = ['DOUBLE KILL!','TRIPLE KILL!','RAMPAGE!','UNSTOPPABLE!','GODLIKE!'];
+    function showKillStreak(n) {
+        if (n < 2) return;
+        const banner = document.getElementById('streakBanner');
+        const idx    = Math.min(n - 2, streakMessages.length - 1);
+        const colors = ['#ffcc00','#ff6600','#ff0044','#cc00ff','#00ffcc'];
+        banner.textContent   = streakMessages[idx];
+        banner.style.color   = colors[idx];
+        banner.style.textShadow = `0 0 30px ${colors[idx]}`;
+        banner.style.animation = 'none';
+        void banner.offsetWidth;
+        banner.style.animation = 'streakIn 2s ease-out forwards';
+    }
+
+    // ═══════════════════════════════════════════
+    //  PeerJS Networking
+    // ═══════════════════════════════════════════
+    let connections = [];
+    let peer;
+
+    async function initializePeer() {
+        let iceServers = [];
+        try {
+            const response = await fetch('https://entangled.fayssal-rcz.workers.dev');
+            const data = await response.json();
+            iceServers = data.iceServers;
+        } catch (err) {
+            iceServers = [{ urls: ["stun:stun.cloudflare.com:3478"] }];
+        }
+        peer = new Peer(windowId, { config: { iceServers } });
+        peer.on('open', id => document.getElementById('myPeerId').textContent = id);
+        peer.on('error', err => { if (err.type === 'id-taken') alert('ID taken!'); });
+        peer.on('connection', conn => setupConnection(conn));
+    }
+    initializePeer();
+
+    function connectToPeer() {
+        const destId = document.getElementById('destPeerId').value;
+        if (destId) setupConnection(peer.connect(destId));
+    }
+    function setupConnection(conn) {
+        connections.push(conn);
+        conn.on('data', data => handleIncomingData(data));
+        conn.on('close', () => { connections = connections.filter(c => c !== conn); });
+    }
+    function broadcast(data) {
+        channel.postMessage(data);
+        connections.forEach(conn => conn.send(data));
+    }
+    function broadcastPosition() {
+        winVelX = window.screenX - lastWinX;
+        winVelY = window.screenY - lastWinY;
+        lastWinX = window.screenX;
+        lastWinY = window.screenY;
+        broadcast({
+            type: 'update', id: windowId, hue: windowHue,
+            x: window.screenX + window.innerWidth/2 + nodeOffX,
+            y: window.screenY + window.innerHeight/2 + nodeOffY,
+            mouseX: window.screenX + mousePos.x,
+            mouseY: window.screenY + mousePos.y,
+            timestamp: Date.now(), vx: winVelX, vy: winVelY,
+            score, particles: currentParticles
+        });
+    }
+
+    function handleIncomingData(data) {
+        if (data.id === windowId) return;
+        if (data.type === 'close') {
+            delete otherWindows[data.id];
+        } else if (data.type === 'pulse') {
+            applyPulse(data.x, data.y, false);
+        } else if (data.type === 'shoot') {
+            projectiles.push(data.projectile);
+        } else if (data.type === 'shield') {
+            if (otherWindows[data.id]) otherWindows[data.id].wave = { startTime: data.startTime };
+        } else if (data.type === 'asteroid_spawn') {
+            const ast = new Asteroid(data.x, data.y, data.id, data.points, data.size, data.isElite);
+            asteroids.set(ast.id, ast);
+        } else if (data.type === 'asteroid_hit') {
+            const ast = asteroids.get(data.asteroidId);
+            if (ast) {
+                ast.hp -= data.damage;
+                if (ast.hp <= 0) {
+                    if (data.attackerId === windowId) {
+                        const baseScore = ast.isElite ? 15000 : 5000;
+                        const feverMult = feverActive ? 3 : 1;
+                        const gained = baseScore * feverMult;
+                        score += gained;
+                        spawnFloatingText(
+                            ast.x - window.screenX, ast.y - window.screenY,
+                            `+${gained}${feverActive ? ' 🔥×3' : ''}`, ast.isElite ? '#00d4ff' : '#ffcc00', ast.isElite ? 26 : 22
+                        );
+                        // Fever meter charge
+                        feverMeter = Math.min(100, feverMeter + (ast.isElite ? 35 : 18));
+                        // Coin drop
+                        const coinAmt = ast.isElite ? (8 + Math.floor(Math.random() * 8)) : (3 + Math.floor(Math.random() * 5));
+                        coinPickups.push({ gx: ast.x + (Math.random()-0.5)*40, gy: ast.y + (Math.random()-0.5)*40, value: coinAmt, life: 1.0, startTime: Date.now() });
+                        // Power-up drop — elite always drops one
+                        if (ast.isElite || Math.random() < 0.3) {
+                            const types = Object.keys(POWERUP_TYPES);
+                            const type  = types[Math.floor(Math.random() * types.length)];
+                            powerupPickups.push({ type, gx: ast.x, gy: ast.y, startTime: Date.now() });
+                        }
+                    }
+                    spawnDebris(ast.x, ast.y, ast.isElite ? 200 : (ast.targetHue || 30), ast.isElite ? 35 : 22);
+                    asteroids.delete(data.asteroidId);
+                    screenShake = ast.isElite ? 20 : 12;
+                    // Spawn remaining asteroid slots that were blocked by cap
+                    lastSingleSpawnTime = 0; // allow immediate next spawn
+                    updateWaveUI();
+                }
+            }
+        } else if (data.type === 'wave_update') {
+            currentWave = data.wave; waveStatus = data.status; countdownTime = data.countdown;
+            updateWaveUI();
+        } else if (data.type === 'projectile_hit') {
+            if (data.targetId === windowId) {
+                if (myWave && Date.now() - myWave.startTime < 4000) return;
+                currentParticles = Math.max(0, currentParticles - 10);
+                screenShake = 20;
+                document.body.style.backgroundColor = '#500';
+                setTimeout(() => document.body.style.backgroundColor = '#050505', 150);
+                const lCX = canvas.width/2 + nodeOffX;
+                const lCY = canvas.height/2 + nodeOffY;
+                spawnFloatingText(lCX + (Math.random()-0.5)*60, lCY - 30, '-10 HP', '#ff4444', 18);
+            }
+        } else if (data.type === 'siphon') {
+            if (data.targetId === windowId) {
+                if (myWave && Date.now() - myWave.startTime < 4000) return;
+                currentParticles = Math.max(0, currentParticles - 1);
+                screenShake = 15;
+                document.body.style.backgroundColor = '#500';
+                setTimeout(() => document.body.style.backgroundColor = '#050505', 100);
+            }
+        } else {
+            const { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, wave, timestamp, particles: remoteParticles } = data;
+            otherWindows[id] = { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, lastSeen: Date.now(), wave, timestamp, particles: remoteParticles };
+            updateLeaderboard();
+        }
+    }
+    channel.onmessage = (event) => handleIncomingData(event.data);
+
+    // ═══════════════════════════════════════════
+    //  Asteroid
+    // ═══════════════════════════════════════════
+    class Asteroid {
+        constructor(x, y, id, points, size, isElite) {
+            this.x = x; this.y = y;
+            this.id    = id   || Math.random().toString(36).substr(2,9);
+            this.isElite = isElite || false;
+            this.hp    = this.isElite ? 12 : 5;
+            this.maxHp = this.hp;
+            this.size  = size;
+            this.points = points;
+            this.rotation  = 0;
+            this.rotVel    = (Math.random()-0.5) * (this.isElite ? 0.025 : 0.05);
+            this.targetHue = this.isElite ? 200 + Math.random()*60 : Math.random() * 60;
+            this.pushVx = 0; this.pushVy = 0;
+            this.speed  = this.isElite ? 0.45 : 0.75;
+        }
+        update(tx, ty) {
+            const angle = Math.atan2(ty - this.y, tx - this.x);
+            this.x += Math.cos(angle) * this.speed + this.pushVx;
+            this.y += Math.sin(angle) * this.speed + this.pushVy;
+            this.pushVx *= 0.9;
+            this.pushVy *= 0.9;
+            this.rotation += this.rotVel;
+        }
+        draw(ctx) {
+            ctx.globalCompositeOperation = 'lighter';
+            if (this.isElite) {
+                // Elite glow — electric blue/cyan
+                for (let i = 0; i < 6; i++) {
+                    ctx.fillStyle = `rgba(0,${150+Math.random()*105},255,0.3)`;
+                    ctx.beginPath();
+                    ctx.arc(
+                        this.x - window.screenX + (Math.random()-0.5)*14,
+                        this.y - window.screenY + (Math.random()-0.5)*14,
+                        Math.random()*70, 0, Math.PI*2
+                    );
                     ctx.fill();
                 }
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.fillStyle = '#444';
-                ctx.strokeStyle = '#222';
-                ctx.beginPath();
-                this.points.forEach((p, i) => {
-                    const rx = p.x * Math.cos(this.rotation) - p.y * Math.sin(this.rotation);
-                    const ry = p.x * Math.sin(this.rotation) + p.y * Math.cos(this.rotation);
-                    if (i === 0) ctx.moveTo(this.x - window.screenX + rx, this.y - window.screenY + ry);
-                    else ctx.lineTo(this.x - window.screenX + rx, this.y - window.screenY + ry);
-                });
-                ctx.closePath(); ctx.fill(); ctx.stroke();
-            }
-        }
-
-        // --- Visualization Logic ---
-        const canvas = document.querySelector('canvas') || document.createElement('canvas');
-        if (!canvas.parentElement) document.body.appendChild(canvas);
-        const ctx = canvas.getContext('2d');
-
-        const systems = new Map(); // Store particle arrays for each window ID
-
-        class Particle {
-            constructor(i) {
-                // Deterministic initialization based on index i
-                const seed = i * 13.37;
-                this.angle = (Math.sin(seed) * 0.5 + 0.5) * Math.PI * 2;
-                this.radius = 40 + (Math.cos(seed * 2) * 0.5 + 0.5) * 60;
-                this.size = 0.5 + (Math.sin(seed * 3) * 0.5 + 0.5) * 1.5;
-                this.speed = 0.02 + (Math.cos(seed * 4) * 0.5 + 0.5) * 0.05;
-                
-                this.x = 0; // Calculated in Global Screen Space
-                this.y = 0; 
-                this.vx = 0;
-                this.vy = 0;
-                this.firstFrame = true;
-            }
-
-            update(targetX, targetY, vX, vY, allOrbCenters, allMice) {
-                if (this.firstFrame) {
-                    this.x = targetX;
-                    this.y = targetY;
-                    this.firstFrame = false;
-                }
-
-                this.angle += this.speed;
-                const orbitX = targetX + Math.cos(this.angle) * this.radius;
-                const orbitY = targetY + Math.sin(this.angle) * this.radius;
-
-                // Physics: Inertia based on window movement + Spring to orbit
-                this.vx -= vX * 0.1; 
-                this.vy -= vY * 0.1;
-                this.vx += (orbitX - this.x) * 0.05;
-                this.vy += (orbitY - this.y) * 0.05;
-
-                // Entanglement: Gravity pull towards all other orb centers
-                allOrbCenters.forEach(center => {
-                    if (center.x === targetX && center.y === targetY) return;
-                    const dx = center.x - this.x;
-                    const dy = center.y - this.y;
-                    const dist = Math.hypot(dx, dy);
-                    if (dist < 300) {
-                        const strength = Math.max(0, (300 - dist) / 300);
-                        this.vx += dx * 0.02 * strength;
-                        this.vy += dy * 0.02 * strength;
-                    }
-                });
-
-                // Influence from all mice (Global Entanglement)
-                allMice.forEach(m => {
-                    const dx = m.x - this.x;
-                    const dy = m.y - this.y;
-                    const dist = Math.hypot(dx, dy);
-                    if (dist < 200) {
-                    const force = (200 - dist) * 0.0004;
-                        this.vx += dx * force;
-                        this.vy += dy * force;
-                    }
-                });
-
-                // Friction
-                this.vx *= 0.85;
-                this.vy *= 0.85;
-                this.x += this.vx;
-                this.y += this.vy;
-            }
-        }
-
-        function getOrCreateSystem(id) {
-            if (!systems.has(id)) {
-                const parts = [];
-                for (let i = 0; i < particleCount; i++) parts.push(new Particle(i));
-                systems.set(id, parts);
-            }
-            return systems.get(id);
-        }
-
-        function resize() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        window.addEventListener('resize', resize);
-        resize();
-
-        // Mouse and Interaction Events
-        window.addEventListener('pointermove', (e) => {
-            mousePos.x = e.clientX;
-            mousePos.y = e.clientY;
-        });
-        // Use pointerdown for multi-touch support
-        window.addEventListener('pointerdown', (e) => {
-            isPointerDown = true;
-            const globalX = window.screenX + e.clientX;
-            const globalY = window.screenY + e.clientY;
-            
-            // Still trigger visual pulse
-            broadcast({ type: 'pulse', x: globalX, y: globalY }); 
-            applyPulse(globalX, globalY, true);
-        });
-        
-        
-        function isMaster() {
-            const ids = [windowId, ...Object.keys(otherWindows)].sort();
-            return ids[0] === windowId;
-        }
-
-        function updateWaveUI() {
-            const overlay = document.getElementById('waveOverlay');
-            if (waveStatus === 'cooldown') {
-                overlay.style.display = 'block';
-                overlay.textContent = `NEXT WAVE IN ${countdownTime}s`;
-            } else if (asteroids.size === 0 && waveStatus === 'playing') {
-                overlay.style.display = 'block';
-                overlay.textContent = `WAVE ${currentWave} CLEARED!`;
             } else {
-                overlay.style.display = 'none';
-            }
-        }
-
-        function manageGameFlow() {
-            if (!isMaster()) return;
-            const now = Date.now();
-
-            // Wave logic tick (runs every 1 second)
-            if (now - lastWaveTick >= 1000) {
-                lastWaveTick = now;
-                if (waveStatus === 'waiting' || (waveStatus === 'playing' && asteroids.size === 0 && asteroidsToSpawn === 0)) {
-                    waveStatus = 'cooldown';
-                    countdownTime = 10;
-                }
-
-                if (waveStatus === 'cooldown') {
-                    countdownTime--;
-                    if (countdownTime <= 0) {
-                        currentWave++;
-                        waveStatus = 'playing';
-                        spawnWave(20 + (currentWave - 1) * 10);
-                    }
-                    broadcast({ type: 'wave_update', wave: currentWave, status: waveStatus, countdown: countdownTime });
+                for (let i = 0; i < 5; i++) {
+                    ctx.fillStyle = `rgba(255,${Math.random()*100},0,0.4)`;
+                    ctx.beginPath();
+                    ctx.arc(
+                        this.x - window.screenX - Math.cos(this.rotation)*10 + (Math.random()-0.5)*10,
+                        this.y - window.screenY - Math.sin(this.rotation)*10 + (Math.random()-0.5)*10,
+                        Math.random()*55, 0, Math.PI*2
+                    );
+                    ctx.fill();
                 }
             }
-
-            // Progressive moderated spawning (runs every 400ms)
-            if (waveStatus === 'playing' && asteroidsToSpawn > 0) {
-                if (now - lastSingleSpawnTime > 400) {
-                    createSingleAsteroid();
-                    asteroidsToSpawn--;
-                    lastSingleSpawnTime = now;
-                }
+            ctx.globalCompositeOperation = 'source-over';
+            const hpFrac = this.hp / this.maxHp;
+            if (this.isElite) {
+                ctx.fillStyle = `hsl(${200 + hpFrac*60},80%,${20+hpFrac*20}%)`;
+                ctx.strokeStyle = `hsla(${180+hpFrac*80},100%,60%,0.9)`;
+                ctx.lineWidth = 2.5;
+            } else {
+                ctx.fillStyle = `hsl(${hpFrac*30},60%,${25+hpFrac*15}%)`;
+                ctx.strokeStyle = '#111';
+                ctx.lineWidth = 1.5;
             }
-        }
-
-        function spawnWave(count) {
-            asteroidsToSpawn = count;
-        }
-
-        function createSingleAsteroid() {
-            const side = Math.floor(Math.random() * 4);
-            let ax = 0, ay = 0;
-            if (side === 0) { ax = Math.random() * canvas.width; ay = -100; }
-            else if (side === 1) { ax = Math.random() * canvas.width; ay = canvas.height + 100; }
-            else if (side === 2) { ax = -100; ay = Math.random() * canvas.height; }
-            else { ax = canvas.width + 100; ay = Math.random() * canvas.height; }
-            
-            const size = 25 + Math.random() * 20;
-            const pts = [];
-            for (let j = 0; j < 8; j++) {
-                const angle = (j / 8) * Math.PI * 2;
-                const r = size * (0.8 + Math.random() * 0.4);
-                pts.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
-            }
-            const id = 'ast-' + Math.random().toString(36).substr(2, 5);
-            const astData = { type: 'asteroid_spawn', id, x: window.screenX + ax, y: window.screenY + ay, size, points: pts };
-            broadcast(astData);
-            handleIncomingData(astData);
-        }
-
-
-        window.addEventListener('pointerup', () => isPointerDown = false);
-        window.addEventListener('pointercancel', () => isPointerDown = false);
-
-        // Keyboard interaction to trigger pulses at window centers
-        window.addEventListener('keydown', e => { 
-            keys[e.code] = true; 
-            if (e.code === 'Space') e.preventDefault();
-        });
-        window.addEventListener('keyup', e => { keys[e.code] = false; });
-
-        function triggerShoot(lCX, lCY) {
-            const now = Date.now();
-            // Fire rate limit: 700ms between shots
-            if (now - lastShootTime < 100) return; // keep always 250ms fire rate
-            if (currentParticles < 10) return;
-            
-            lastShootTime = now; // Update the timestamp of the last shot to enforce the fire rate limit
-            currentParticles = Math.max(0, currentParticles - 1);
-            
-            const gxMouse = window.screenX + mousePos.x;
-            const gyMouse = window.screenY + mousePos.y;
-            
-            const angle = Math.atan2(gyMouse - lCY, gxMouse - lCX);
-            const proj = {
-                id: Math.random().toString(36).substr(2, 5),
-                ownerId: windowId, hue: windowHue,
-                x: lCX, y: lCY, // Fire from center of core
-                vx: Math.cos(angle) * 12, vy: Math.sin(angle) * 12,
-                startTime: now
-            };
-            projectiles.push(proj);
-            broadcast({ type: 'shoot', projectile: proj });
-        }
-
-        function handleCombatActions(lCX, lCY) {
-            const now = Date.now();
-            // Continuous Fire
-            if (isPointerDown) {
-                triggerShoot(lCX, lCY);
-            }
-            // Shield Mechanic (Space)
-            if (keys['Space'] && now - lastShieldTime > 9000) {
-                lastShieldTime = now;
-                myWave = { startTime: now };
-                broadcast({ type: 'shield', id: windowId, startTime: now });
-            }
-            // Nitro Mechanic (Shift)
-            if ((keys['ShiftLeft'] || keys['ShiftRight']) && !isNitroActive && now > lastNitroEndTime + nitroCooldown) {
-                isNitroActive = true;
-                nitroStartTime = now;
-            }
-            if (isNitroActive && now > nitroStartTime + nitroDuration) {
-                isNitroActive = false;
-                lastNitroEndTime = now;
-            }
-        }
-
-        function drawProjectile(p) {
-            ctx.save();
-            ctx.translate(p.x - window.screenX, p.y - window.screenY);
-            ctx.rotate(Math.atan2(p.vy, p.vx));
-            
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = `hsla(${p.hue}, 100%, 50%, 1)`;
-            ctx.fillStyle = `hsla(${p.hue}, 100%, 80%, 1)`;
-            
-            // Drop shape
             ctx.beginPath();
-            ctx.moveTo(8, 0); // front tip
-            ctx.bezierCurveTo(8, 4, 0, 4, -4, 4); 
-            ctx.arc(-4, 0, 4, Math.PI/2, -Math.PI/2); // back round
-            ctx.bezierCurveTo(0, -4, 8, -4, 8, 0); 
-            ctx.fill();
-            
-            ctx.restore();
-            ctx.shadowBlur = 0;
-        }
-
-        function drawWave(x, y, startTime, hue) {
-            const elapsed = Date.now() - startTime;
-            if (elapsed > 4000) return;
-            const radius = (elapsed / 4000) * 250;
-            const opacity = 1 - (elapsed / 4000);
-            ctx.beginPath();
-            ctx.arc(x - window.screenX, y - window.screenY, radius, 0, Math.PI * 2);
-            ctx.strokeStyle = `hsla(${hue}, 100%, 70%, ${opacity})`;
-            ctx.lineWidth = 4;
-            ctx.stroke();
-            ctx.fillStyle = `hsla(${hue}, 100%, 70%, ${opacity * 0.1})`;
-            ctx.fill();
-        }
-
-        function applyPulse(gx, gy, isLocal) {
-            if (isLocal) combo = Math.min(10, combo + 0.5);
-
-            if (isLocal) {
-                Object.entries(otherWindows).forEach(([id, win]) => {
-                    // Calculate distance between the pulse (gx, gy) and the remote window's core
-                    const dx = gx - win.x;
-                    const dy = gy - win.y;
-                    if (Math.hypot(dx, dy) < 60) {
-                        score += 30; //melee reward
-                        document.getElementById('scoreDisplay').textContent = score;
-                        broadcast({ type: 'siphon', targetId: id, attackerId: windowId });
-                    }
-                });
+            this.points.forEach((p, i) => {
+                const rx = p.x * Math.cos(this.rotation) - p.y * Math.sin(this.rotation);
+                const ry = p.x * Math.sin(this.rotation) + p.y * Math.cos(this.rotation);
+                if (i === 0) ctx.moveTo(this.x - window.screenX + rx, this.y - window.screenY + ry);
+                else         ctx.lineTo(this.x - window.screenX + rx, this.y - window.screenY + ry);
+            });
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+            // Elite crown indicator
+            if (this.isElite) {
+                ctx.font = '14px serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('👑', this.x - window.screenX, this.y - window.screenY - this.size - 14);
+                ctx.textAlign = 'left';
             }
+            // HP bar
+            const bw = this.size * 2;
+            const bh = this.isElite ? 6 : 4;
+            const bx = this.x - window.screenX - bw/2;
+            const by = this.y - window.screenY - this.size - (this.isElite ? 26 : 10);
+            ctx.fillStyle = '#222';
+            ctx.fillRect(bx, by, bw, bh);
+            ctx.fillStyle = this.isElite ? `hsl(${180+hpFrac*60},100%,55%)` : `hsl(${hpFrac*120},100%,50%)`;
+            ctx.fillRect(bx, by, bw * hpFrac, bh);
+        }
+    }
 
-            systems.forEach(particles => {
-                particles.forEach(p => {
-                    const dx = p.x - gx;
-                    const dy = p.y - gy;
-                    const dist = Math.hypot(dx, dy);
-                    if (dist < 400) {
-                        const force = (400 - dist) * 0.2;
-                        const angle = Math.atan2(dy, dx);
-                        p.vx += Math.cos(angle) * force;
-                        p.vy += Math.sin(angle) * force;
+    // ═══════════════════════════════════════════
+    //  Canvas & Particle System
+    // ═══════════════════════════════════════════
+    const canvas = document.querySelector('canvas') || document.createElement('canvas');
+    if (!canvas.parentElement) document.body.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+    const systems = new Map();
+
+    class Particle {
+        constructor(i) {
+            const seed = i * 13.37;
+            this.angle  = (Math.sin(seed)*0.5+0.5) * Math.PI * 2;
+            this.radius = 40 + (Math.cos(seed*2)*0.5+0.5) * 60;
+            this.size   = 0.5 + (Math.sin(seed*3)*0.5+0.5) * 1.5;
+            this.speed  = 0.02 + (Math.cos(seed*4)*0.5+0.5) * 0.05;
+            this.x = 0; this.y = 0;
+            this.vx = 0; this.vy = 0;
+            this.firstFrame = true;
+        }
+        update(targetX, targetY, vX, vY, allOrbCenters, allMice) {
+            if (this.firstFrame) { this.x = targetX; this.y = targetY; this.firstFrame = false; }
+            this.angle += this.speed;
+            const orbitX = targetX + Math.cos(this.angle) * this.radius;
+            const orbitY = targetY + Math.sin(this.angle) * this.radius;
+            this.vx -= vX * 0.1; this.vy -= vY * 0.1;
+            this.vx += (orbitX - this.x) * 0.05;
+            this.vy += (orbitY - this.y) * 0.05;
+            allOrbCenters.forEach(center => {
+                if (center.x === targetX && center.y === targetY) return;
+                const dx = center.x - this.x, dy = center.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < 300) {
+                    const s = Math.max(0,(300-dist)/300);
+                    this.vx += dx * 0.02 * s;
+                    this.vy += dy * 0.02 * s;
+                }
+            });
+            allMice.forEach(m => {
+                const dx = m.x - this.x, dy = m.y - this.y;
+                const dist = Math.hypot(dx, dy);
+                if (dist < 200) {
+                    const force = (200 - dist) * 0.0004;
+                    this.vx += dx * force; this.vy += dy * force;
+                }
+            });
+            this.vx *= 0.85; this.vy *= 0.85;
+            this.x += this.vx; this.y += this.vy;
+        }
+    }
+
+    function getOrCreateSystem(id) {
+        if (!systems.has(id)) {
+            const parts = [];
+            for (let i = 0; i < particleCount; i++) parts.push(new Particle(i));
+            systems.set(id, parts);
+        }
+        return systems.get(id);
+    }
+
+    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ═══════════════════════════════════════════
+    //  Input
+    // ═══════════════════════════════════════════
+    window.addEventListener('pointermove', e => { mousePos.x = e.clientX; mousePos.y = e.clientY; });
+    window.addEventListener('pointerdown', e => {
+        // Ignore if touch is on active control elements
+        if (isMobile) {
+            let target = e.target;
+            while (target) {
+                if (target.classList && (
+                    target.classList.contains('joystick-container') ||
+                    target.classList.contains('right-joystick-container') ||
+                    target.classList.contains('mobile-btn') ||
+                    target.classList.contains('pu-slot') ||
+                    target.id === 'hudShopBtn' ||
+                    target.id === 'networkToggleBtn' ||
+                    target.id === 'networkUI' ||
+                    target.id === 'shopInner'
+                )) {
+                    return;
+                }
+                target = target.parentElement;
+            }
+        }
+        isPointerDown = true;
+        const gx = window.screenX + e.clientX, gy = window.screenY + e.clientY;
+        broadcast({ type: 'pulse', x: gx, y: gy });
+        applyPulse(gx, gy, true);
+    });
+    window.addEventListener('pointerup',     () => isPointerDown = false);
+    window.addEventListener('pointercancel', () => isPointerDown = false);
+    window.addEventListener('keydown', e => {
+        keys[e.code] = true;
+        if (e.code === 'Space') e.preventDefault();
+        if (e.code === 'Tab') { e.preventDefault(); shopOpen ? closeShop() : openShop(); }
+        if (e.code === 'Digit1') activatePowerup(0);
+        if (e.code === 'Digit2') activatePowerup(1);
+        if (e.code === 'Digit3') activatePowerup(2);
+        if (e.code === 'KeyF')   setControlMode(controlMode === 1 ? 2 : 1);
+        // In cursor mode, Ctrl should not trigger browser shortcuts
+        if (controlMode === 2 && (e.code === 'ControlLeft' || e.code === 'ControlRight')) e.preventDefault();
+    });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    // ═══════════════════════════════════════════
+    //  Wave Logic
+    // ═══════════════════════════════════════════
+    function isMaster() {
+        const ids = [windowId, ...Object.keys(otherWindows)].sort();
+        return ids[0] === windowId;
+    }
+    function updateWaveUI() {
+        const overlay = document.getElementById('waveOverlay');
+        if (waveStatus === 'cooldown') {
+            overlay.style.display = 'block';
+            overlay.textContent   = `NEXT WAVE IN ${countdownTime}s`;
+        } else if (asteroids.size === 0 && waveStatus === 'playing') {
+            overlay.style.display = 'block';
+            overlay.textContent   = `WAVE ${currentWave} CLEARED! 🎉`;
+        } else {
+            overlay.style.display = 'none';
+        }
+    }
+    function manageGameFlow() {
+        if (!isMaster()) return;
+        const now = Date.now();
+        if (now - lastWaveTick >= 1000) {
+            lastWaveTick = now;
+            if (waveStatus === 'waiting' || (waveStatus === 'playing' && asteroids.size === 0 && asteroidsToSpawn === 0)) {
+                // Wave-clear bonus!
+                if (waveStatus === 'playing' && currentWave > 0) {
+                    const elapsed = Math.floor((now - waveStartTime) / 1000);
+                    const bonus = Math.max(0, 2000 - elapsed * 80);
+                    if (bonus > 0) {
+                        score += bonus;
+                        const lCX = canvas.width/2 + nodeOffX;
+                        const lCY = canvas.height/2 + nodeOffY;
+                        spawnFloatingText(lCX, lCY - 80, `⚡ WAVE CLEARED! +${bonus}`, '#00ffcc', 24);
+                        const coinBonus = Math.floor(bonus / 200);
+                        if (coinBonus > 0) { coins += coinBonus; saveCoins(); spawnFloatingText(lCX, lCY - 110, `+${coinBonus} 🪙 SPEED BONUS`, '#ffd700', 17); }
                     }
-                });
+                }
+                waveStatus = 'cooldown';
+                const cooldownSecs = currentWave === 0 ? 5 : Math.max(5, 10 - Math.floor(currentWave / 2));
+                countdownTime = cooldownSecs;
+            }
+            if (waveStatus === 'cooldown') {
+                countdownTime--;
+                if (countdownTime <= 0) {
+                    currentWave++;
+                    waveStatus = 'playing';
+                    waveStartTime = Date.now();
+                    spawnWave(getWaveAsteroidCount());
+                    const lCX = canvas.width/2 + nodeOffX;
+                    const lCY = canvas.height/2 + nodeOffY;
+                    spawnFloatingText(lCX, lCY, `WAVE ${currentWave}`, '#ff0044', 32);
+                }
+                broadcast({ type: 'wave_update', wave: currentWave, status: waveStatus, countdown: countdownTime });
+            }
+        }
+        // Spawn one asteroid at a time, respecting the active cap and per-wave delay
+        if (waveStatus === 'playing' && asteroidsToSpawn > 0) {
+            const delay = getSpawnDelay();
+            if (asteroids.size < ASTEROID_MAX_ACTIVE && now - lastSingleSpawnTime > delay) {
+                createSingleAsteroid(); asteroidsToSpawn--; lastSingleSpawnTime = now;
+            }
+        }
+    }
+    function spawnWave(count) { asteroidsToSpawn = count; }
+    function createSingleAsteroid() {
+        const side = Math.floor(Math.random()*4);
+        let ax = 0, ay = 0;
+        if (side===0) { ax=Math.random()*canvas.width; ay=-100; }
+        else if (side===1) { ax=Math.random()*canvas.width; ay=canvas.height+100; }
+        else if (side===2) { ax=-100; ay=Math.random()*canvas.height; }
+        else               { ax=canvas.width+100; ay=Math.random()*canvas.height; }
+        // Elite asteroids: 15% chance from wave 3+, higher from wave 6+
+        const eliteChance = currentWave >= 6 ? 0.30 : currentWave >= 3 ? 0.15 : 0;
+        const isElite = Math.random() < eliteChance;
+        const size = isElite ? (45 + Math.random()*20) : (25 + Math.random()*18);
+        const numPts = isElite ? 10 : 8;
+        const pts  = [];
+        for (let j = 0; j < numPts; j++) {
+            const a = (j/numPts)*Math.PI*2;
+            const r = size*(0.75+Math.random()*0.5);
+            pts.push({ x: Math.cos(a)*r, y: Math.sin(a)*r });
+        }
+        const id = 'ast-' + Math.random().toString(36).substr(2,5);
+        const astData = { type:'asteroid_spawn', id, x:window.screenX+ax, y:window.screenY+ay, size, points:pts, isElite };
+        broadcast(astData); handleIncomingData(astData);
+    }
+
+    // ═══════════════════════════════════════════
+    //  Combat
+    // ═══════════════════════════════════════════
+    function triggerShoot(lCX, lCY, customAngle) {
+        const now = Date.now();
+        const fireCooldown = Math.max(50, 100 - fireRateBonus);
+        if (now - lastShootTime < fireCooldown) return;
+        if (currentParticles < 10) return;
+        lastShootTime = now;
+        currentParticles = Math.max(0, currentParticles - 1);
+        
+        let angle = customAngle;
+        if (angle === undefined) {
+            const gxM = window.screenX + mousePos.x, gyM = window.screenY + mousePos.y;
+            angle = Math.atan2(gyM - lCY, gxM - lCX);
+        }
+        
+        const proj = {
+            id: Math.random().toString(36).substr(2,5),
+            ownerId: windowId, hue: windowHue,
+            x: lCX, y: lCY,
+            vx: Math.cos(angle)*12, vy: Math.sin(angle)*12,
+            startTime: now
+        };
+        projectiles.push(proj);
+        broadcast({ type:'shoot', projectile: proj });
+    }
+
+    function handleCombatActions(lCX, lCY) {
+        const now = Date.now();
+        let shouldShoot = false;
+        let shootAngle;
+
+        if (isMobile) {
+            if (rightJoystickActive && (Math.hypot(rightJoystickInput.x, rightJoystickInput.y) > 0.15)) {
+                shouldShoot = true;
+                shootAngle = Math.atan2(rightJoystickInput.y, rightJoystickInput.x);
+            }
+        } else {
+            shouldShoot = controlMode === 1
+                ? isPointerDown
+                : (keys['ControlLeft'] || keys['ControlRight']);
+        }
+
+        if (shouldShoot) triggerShoot(lCX, lCY, shootAngle);
+        
+        const shieldCooldown = Math.max(3000, 9000 - shieldCDBonus);
+        if (keys['Space'] && now - lastShieldTime > shieldCooldown) {
+            lastShieldTime = now;
+            myWave = { startTime: now };
+            broadcast({ type:'shield', id: windowId, startTime: now });
+        }
+        const nitroTotalDur = nitroDuration + nitroDurBonus;
+        if ((keys['ShiftLeft']||keys['ShiftRight']) && !isNitroActive && now > lastNitroEndTime + nitroCooldown) {
+            isNitroActive = true; nitroStartTime = now;
+        }
+        if (isNitroActive && now > nitroStartTime + nitroTotalDur) {
+            isNitroActive = false; lastNitroEndTime = now;
+        }
+    }
+
+    function drawProjectile(p) {
+        ctx.save();
+        ctx.translate(p.x - window.screenX, p.y - window.screenY);
+        ctx.rotate(Math.atan2(p.vy, p.vx));
+        ctx.shadowBlur = 15;
+        ctx.shadowColor = `hsla(${p.hue},100%,50%,1)`;
+        ctx.fillStyle   = `hsla(${p.hue},100%,80%,1)`;
+        ctx.beginPath();
+        ctx.moveTo(8,0);
+        ctx.bezierCurveTo(8,4,0,4,-4,4);
+        ctx.arc(-4,0,4,Math.PI/2,-Math.PI/2);
+        ctx.bezierCurveTo(0,-4,8,-4,8,0);
+        ctx.fill();
+        ctx.restore();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawWave(x, y, startTime, hue) {
+        const elapsed = Date.now() - startTime;
+        if (elapsed > 4000) return;
+        const radius  = (elapsed/4000)*250;
+        const opacity = 1-(elapsed/4000);
+        ctx.beginPath();
+        ctx.arc(x - window.screenX, y - window.screenY, radius, 0, Math.PI*2);
+        ctx.strokeStyle = `hsla(${hue},100%,70%,${opacity})`;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        ctx.fillStyle = `hsla(${hue},100%,70%,${opacity*0.1})`;
+        ctx.fill();
+    }
+
+    function applyPulse(gx, gy, isLocal) {
+        if (isLocal) {
+            combo = Math.min(10, combo + 0.5);
+            Object.entries(otherWindows).forEach(([id, win]) => {
+                if (Math.hypot(gx - win.x, gy - win.y) < 60) {
+                    score += 30;
+                    document.getElementById('scoreDisplay').textContent = score;
+                    broadcast({ type:'siphon', targetId: id, attackerId: windowId });
+                    const lx = win.x - window.screenX, ly = win.y - window.screenY;
+                    spawnFloatingText(lx, ly - 30, '+30 SIPHON', '#ff00ff', 16);
+                }
             });
         }
+        systems.forEach(particles => {
+            particles.forEach(p => {
+                const dx = p.x - gx, dy = p.y - gy;
+                const dist = Math.hypot(dx, dy);
+                if (dist < 400) {
+                    const force = (400 - dist) * 0.2;
+                    const angle = Math.atan2(dy, dx);
+                    p.vx += Math.cos(angle)*force;
+                    p.vy += Math.sin(angle)*force;
+                }
+            });
+        });
+    }
 
-        const drawCore = (localX, localY, color = '#00d4ff', scale = 1) => {
-            const baseRadius = 30 * scale;
-            const gradient = ctx.createRadialGradient(localX, localY, 0, localX, localY, baseRadius);
-            gradient.addColorStop(0, '#fff');
-            gradient.addColorStop(0.2, color);
-            gradient.addColorStop(1, 'transparent');
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(localX, localY, baseRadius, 0, Math.PI * 2);
-            ctx.fill();
-        };
+    const drawCore = (localX, localY, color='#00d4ff', scale=1) => {
+        const baseRadius = 30 * scale;
+        const gradient = ctx.createRadialGradient(localX, localY, 0, localX, localY, baseRadius);
+        gradient.addColorStop(0,   '#fff');
+        gradient.addColorStop(0.2, color);
+        gradient.addColorStop(1,   'transparent');
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(localX, localY, baseRadius, 0, Math.PI*2);
+        ctx.fill();
+    };
 
-        function updateLeaderboard() {
-            const board = document.getElementById('leaderboard');
-            const players = [
-                { id: 'You', score: score, color: windowColor },
-                ...Object.entries(otherWindows).map(([id, win]) => ({
-                    id: id,
-                    score: win.score || 0,
-                    color: `hsla(${win.hue}, 100%, 60%, 1)`
-                }))
-            ];
-            players.sort((a, b) => b.score - a.score);
-            board.innerHTML = players.map(p => 
-                `<div style="color: ${p.color}">${p.id}: ${p.score}</div>`
-            ).join('');
-        }
+    function updateLeaderboard() {
+        const board = document.getElementById('leaderboard');
+        const players = [
+            { id:'You', score, color: windowColor },
+            ...Object.entries(otherWindows).map(([id,win]) => ({
+                id, score: win.score||0,
+                color: `hsla(${win.hue},100%,60%,1)`
+            }))
+        ];
+        players.sort((a,b) => b.score - a.score);
+        board.innerHTML = players.map((p,i) => {
+            const medal = ['🥇','🥈','🥉'][i] || '';
+            return `<div style="color:${p.color}">${medal} ${p.id}: ${p.score}</div>`;
+        }).join('');
+    }
 
-        function draw() {
-            try {
-            // Recharge logic
+    // ═══════════════════════════════════════════
+    //  Main Draw Loop
+    // ═══════════════════════════════════════════
+    function draw() {
+        try {
             const time = Date.now() / 1000;
+            const now  = Date.now();
+
+            // Combo decay
             combo = Math.max(1.0, combo - 0.015);
-            if (screenShake > 0) screenShake *= 0.9;
+            if (screenShake > 0) screenShake *= 0.88;
 
-            // Replenish particles over time
-            if (currentParticles < particleCount) currentParticles += 0.01;
+            // Particle regen (upgrade-boosted)
+            const maxP = 250 + particleMaxBonus;
+            if (currentParticles < maxP) currentParticles += 0.05 + regenBonus;
+            if (currentParticles > maxP) currentParticles = maxP;
 
-            // Movement Logic (WASD + Arrows) with Nitro
+            // ── Fever Mode Logic ──
+            if (feverActive) {
+                if (now - feverStart > FEVER_DURATION) {
+                    feverActive = false;
+                    feverMeter = 0;
+                    document.getElementById('feverActive').classList.remove('on');
+                    spawnFloatingText(canvas.width/2, canvas.height/2 - 60, 'FEVER OVER', '#ff6600', 18);
+                }
+            } else {
+                // Fever decays slowly when not building
+                feverMeter = Math.max(0, feverMeter - FEVER_DECAY);
+                if (feverMeter >= 100) {
+                    feverActive = true;
+                    feverStart  = now;
+                    document.getElementById('feverActive').classList.add('on');
+                    spawnFloatingText(canvas.width/2, canvas.height/2 - 60, '🔥 FEVER MODE! 🔥', '#ff4400', 30);
+                    screenShake = 18;
+                }
+            }
+            // Update fever HUD
+            const fbarEl = document.getElementById('feverBar');
+            if (feverActive) {
+                const remaining = 1 - (now - feverStart) / FEVER_DURATION;
+                fbarEl.style.width = `${Math.max(0, remaining * 100)}%`;
+                fbarEl.classList.add('full');
+            } else {
+                fbarEl.style.width = `${feverMeter}%`;
+                fbarEl.classList.remove('full');
+            }
+
+            // Wave info display
+            const waveInfoEl = document.getElementById('waveInfo');
+            if (waveStatus === 'playing') {
+                const remaining = asteroidsToSpawn + asteroids.size;
+                waveInfoEl.textContent = `WAVE ${currentWave}  •  ${remaining} LEFT  •  CAP ${ASTEROID_MAX_ACTIVE}`;
+            } else {
+                waveInfoEl.textContent = '';
+            }
+
+            // Low-health warning ring
+            const healthFrac = currentParticles / maxP;
+            const ring = document.getElementById('lowHealthRing');
+            if (healthFrac < 0.25) {
+                const pulse = Math.sin(now * 0.006) * 0.5 + 0.5;
+                ring.style.borderColor = `rgba(255,0,0,${0.3 + pulse * 0.5})`;
+            } else {
+                ring.style.borderColor = 'transparent';
+            }
+
+            // Movement
             const accel = isNitroActive ? 1.2 : 0.3;
-            if (keys['ArrowUp'] || keys['KeyW']) nodeVY -= accel;
-            if (keys['ArrowDown'] || keys['KeyS']) nodeVY += accel;
-            if (keys['ArrowLeft'] || keys['KeyA']) nodeVX -= accel;
-            if (keys['ArrowRight'] || keys['KeyD']) nodeVX += accel;
+            if (isMobile) {
+                nodeVX += joystickInput.x * accel;
+                nodeVY += joystickInput.y * accel;
+            } else if (controlMode === 1) {
+                // Mode 1: keyboard-driven
+                if (keys['ArrowUp']   || keys['KeyW']) nodeVY -= accel;
+                if (keys['ArrowDown'] || keys['KeyS']) nodeVY += accel;
+                if (keys['ArrowLeft'] || keys['KeyA']) nodeVX -= accel;
+                if (keys['ArrowRight']|| keys['KeyD']) nodeVX += accel;
+            } else {
+                // Mode 2: follow cursor — steer toward mouse position
+                const targetX = mousePos.x - canvas.width/2;
+                const targetY = mousePos.y - canvas.height/2;
+                const dist = Math.hypot(targetX - nodeOffX, targetY - nodeOffY);
+                if (dist > 6) {
+                    const followStrength = isNitroActive ? 0.18 : 0.07;
+                    nodeVX += (targetX - nodeOffX) * followStrength;
+                    nodeVY += (targetY - nodeOffY) * followStrength;
+                }
+            }
 
-            // Invisible Border Logic (Push back from window edges)
             const margin = 60;
-            const centerX = canvas.width / 2 + nodeOffX;
-            const centerY = canvas.height / 2 + nodeOffY;
-            
-            if (centerX < margin) nodeVX += (margin - centerX) * 0.05;
-            if (centerX > canvas.width - margin) nodeVX -= (centerX - (canvas.width - margin)) * 0.05;
-            if (centerY < margin) nodeVY += (margin - centerY) * 0.05;
-            if (centerY > canvas.height - margin) nodeVY -= (centerY - (canvas.height - margin)) * 0.05;
+            const centerX = canvas.width/2  + nodeOffX;
+            const centerY = canvas.height/2 + nodeOffY;
+            if (centerX < margin)               nodeVX += (margin - centerX)*0.05;
+            if (centerX > canvas.width - margin) nodeVX -= (centerX - (canvas.width - margin))*0.05;
+            if (centerY < margin)               nodeVY += (margin - centerY)*0.05;
+            if (centerY > canvas.height- margin) nodeVY -= (centerY - (canvas.height- margin))*0.05;
 
             nodeVX *= 0.94; nodeVY *= 0.94;
             nodeOffX += nodeVX; nodeOffY += nodeVY;
 
-            // Update HUD
+            // HUD updates
             document.getElementById('particleDisplay').textContent = Math.floor(currentParticles);
-            
-            // Nitro Bar Update
+            updateCoinDisplay();
+
+            // Nitro bar
             const nBar = document.getElementById('nitroBar');
+            const nitroTotalDur = nitroDuration + nitroDurBonus;
             if (isNitroActive) {
-                const p = 1 - (Date.now() - nitroStartTime) / nitroDuration;
-                nBar.style.width = `${p * 100}%`;
+                nBar.style.width = `${(1-(now-nitroStartTime)/nitroTotalDur)*100}%`;
                 nBar.style.backgroundColor = '#00ff00';
             } else {
-                const p = Math.min(1, (Date.now() - lastNitroEndTime) / nitroCooldown);
-                nBar.style.width = `${p * 100}%`;
-                nBar.style.backgroundColor = p === 1 ? '#ff00ff' : '#444';
+                const p = Math.min(1,(now - lastNitroEndTime)/nitroCooldown);
+                nBar.style.width = `${p*100}%`;
+                nBar.style.backgroundColor = p===1 ? '#ff00ff' : '#444';
             }
 
-            // Ammo Bar Update
+            // Ammo bar
             const ammoBar = document.getElementById('ammoBar');
-            ammoBar.style.width = `${(currentParticles / particleCount) * 100}%`;
-            ammoBar.style.backgroundColor = currentParticles < 50 ? '#ffcc00' : '#00d4ff'; // Warning color for low ammo
+            ammoBar.style.width = `${(currentParticles/maxP)*100}%`;
+            ammoBar.style.backgroundColor = currentParticles < 50 ? '#ffcc00' : '#00d4ff';
 
-            // Shield Cooldown Bar Update
+            // Shield bar
             const shieldBar = document.getElementById('shieldBar');
-            const shieldElapsed = Date.now() - lastShieldTime;
-            if (shieldElapsed < 9000) { // If still on cooldown
-                const p = 1 - (shieldElapsed / 9000);
-                shieldBar.style.width = `${p * 100}%`;
-                shieldBar.style.backgroundColor = '#444'; // Gray when cooling down
+            const shieldCooldown = Math.max(3000, 9000 - shieldCDBonus);
+            const shE = now - lastShieldTime;
+            if (shE < shieldCooldown) {
+                shieldBar.style.width = `${(1-shE/shieldCooldown)*100}%`;
+                shieldBar.style.backgroundColor = '#444';
             } else {
                 shieldBar.style.width = '100%';
-                shieldBar.style.backgroundColor = '#00ff00'; // Green when ready
+                shieldBar.style.backgroundColor = '#00ff00';
             }
 
-            document.getElementById('comboDisplay').textContent = combo > 1.2 ? `x${combo.toFixed(1)} COMBO` : '';
+            // Combo display
+            document.getElementById('comboDisplay').textContent = combo > 1.2 ? `×${combo.toFixed(1)} COMBO` : '';
 
-            // Reset composite operation to default so the background rectangle clears correctly
+            // Power-up slot UI
+            updatePowerupSlotsUI();
+
+            // Mobile buttons cooldown indicators
+            if (isMobile) {
+                const btnShield = document.getElementById('btnShield');
+                const btnNitro = document.getElementById('btnNitro');
+                
+                const shieldCooldown = Math.max(3000, 9000 - shieldCDBonus);
+                const shE = now - lastShieldTime;
+                if (shE < shieldCooldown) {
+                    btnShield.classList.add('cooldown');
+                    btnShield.style.background = `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)) padding-box, conic-gradient(rgba(0,255,0,0.8) ${100 - (shE/shieldCooldown)*100}%, rgba(255,255,255,0.1) 0%) border-box`;
+                } else {
+                    btnShield.classList.remove('cooldown');
+                    btnShield.style.background = 'rgba(0,0,0,0.6)';
+                }
+                
+                const nitroTotalDur = nitroDuration + nitroDurBonus;
+                if (isNitroActive) {
+                    btnNitro.classList.remove('cooldown');
+                    btnNitro.style.background = `hsla(${windowHue}, 100%, 60%, 0.4)`;
+                } else {
+                    const p = Math.min(1, (now - lastNitroEndTime)/nitroCooldown);
+                    if (p < 1) {
+                        btnNitro.classList.add('cooldown');
+                        btnNitro.style.background = `linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)) padding-box, conic-gradient(hsla(${windowHue}, 100%, 60%, 0.8) ${p*100}%, rgba(255,255,255,0.1) 0%) border-box`;
+                    } else {
+                        btnNitro.classList.remove('cooldown');
+                        btnNitro.style.background = 'rgba(0,0,0,0.6)';
+                    }
+                }
+            }
+
+            // ── Clear canvas ──
             ctx.globalCompositeOperation = 'source-over';
-            
-            // Create trail effect
-            ctx.fillStyle = 'rgba(5, 5, 5, 0.2)';
+            ctx.fillStyle = 'rgba(5,5,5,0.2)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Apply Screen Shake
+            // Screen shake
             if (screenShake > 0.1) {
-                ctx.translate(Math.random() * screenShake - screenShake/2, Math.random() * screenShake - screenShake/2);
+                ctx.translate(
+                    Math.random()*screenShake - screenShake/2,
+                    Math.random()*screenShake - screenShake/2
+                );
             }
-            
-            const localCenterX = window.screenX + canvas.width / 2 + nodeOffX;
-            const localCenterY = window.screenY + canvas.height / 2 + nodeOffY;
+
+            const localCenterX = window.screenX + canvas.width/2  + nodeOffX;
+            const localCenterY = window.screenY + canvas.height/2 + nodeOffY;
+            const lCX = canvas.width/2  + nodeOffX;
+            const lCY = canvas.height/2 + nodeOffY;
 
             handleCombatActions(localCenterX, localCenterY);
 
-            // --- XP Star System ---
-            if (stars.length < 3 && Date.now() - lastStarSpawn > 1000) {
-                stars.push({
-                    x: window.screenX + Math.random() * canvas.width,
-                    y: window.screenY + Math.random() * canvas.height,
-                    startTime: Date.now(),
-                    hue: Math.random() * 360
-                });
-                lastStarSpawn = Date.now();
-            }
-
-            for (let i = stars.length - 1; i >= 0; i--) {
-                const s = stars[i];
-                const age = Date.now() - s.startTime;
-                if (age > 10000) {
-                    stars.splice(i, 1);
-                    continue;
-                }
-                
-                // Draw Star (Blinking)
-                const blink = Math.sin(age * 0.005) * 0.5 + 0.5;
-                ctx.fillStyle = `hsla(${s.hue}, 100%, 80%, ${blink})`;
+            // Draw aiming laser for mobile/joystick controls
+            if (isMobile && rightJoystickActive && (Math.hypot(rightJoystickInput.x, rightJoystickInput.y) > 0.15)) {
+                const angle = Math.atan2(rightJoystickInput.y, rightJoystickInput.x);
+                ctx.save();
+                ctx.strokeStyle = `hsla(${windowHue}, 100%, 60%, 0.35)`;
+                ctx.lineWidth = 2.0;
+                ctx.setLineDash([4, 6]);
                 ctx.beginPath();
-                ctx.arc(s.x - window.screenX, s.y - window.screenY, 3, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.moveTo(lCX, lCY);
+                const laserLength = 280;
+                ctx.lineTo(lCX + Math.cos(angle) * laserLength, lCY + Math.sin(angle) * laserLength);
+                ctx.stroke();
+                ctx.restore();
+            }
 
-                // Collection check
-                if (Math.hypot(s.x - localCenterX, s.y - localCenterY) < 40) {
-                    score += 30;
-                    currentParticles = Math.min(particleCount, currentParticles + 10);
-                    document.getElementById('scoreDisplay').textContent = score;
+            // ── Black Hole Effect ──
+            if (activeBlackhole) {
+                const bhe  = now - activeBlackhole.startTime;
+                const bhDur = 5000;
+                if (bhe < bhDur) {
+                    const bhlx = activeBlackhole.x - window.screenX;
+                    const bhly = activeBlackhole.y - window.screenY;
+                    const alpha = 1 - bhe/bhDur;
+                    const radius = 80 + Math.sin(bhe*0.01)*20;
+                    ctx.globalCompositeOperation = 'lighter';
+                    const g = ctx.createRadialGradient(bhlx, bhly, 0, bhlx, bhly, radius);
+                    g.addColorStop(0,   `rgba(100,0,255,${alpha*0.9})`);
+                    g.addColorStop(0.5, `rgba(50,0,150,${alpha*0.4})`);
+                    g.addColorStop(1,   'transparent');
+                    ctx.fillStyle = g;
+                    ctx.beginPath(); ctx.arc(bhlx, bhly, radius, 0, Math.PI*2); ctx.fill();
+                    ctx.globalCompositeOperation = 'source-over';
+                    // Suck in asteroids
+                    for (const [astId, ast] of asteroids.entries()) {
+                        const dx = activeBlackhole.x - ast.x;
+                        const dy = activeBlackhole.y - ast.y;
+                        const dist = Math.hypot(dx, dy);
+                        if (dist < 300) {
+                            ast.pushVx += (dx/dist) * 3;
+                            ast.pushVy += (dy/dist) * 3;
+                            if (dist < radius) {
+                                const hit = { type:'asteroid_hit', asteroidId: astId, damage: 1, attackerId: windowId };
+                                broadcast(hit); handleIncomingData(hit);
+                            }
+                        }
+                    }
+                } else { activeBlackhole = null; }
+            }
+
+            // ── Overload Burst Flash ──
+            if (activeBurst) {
+                const be = now - activeBurst.startTime;
+                if (be < 600) {
+                    const a = Math.max(0, 1 - be/600);
+                    ctx.globalCompositeOperation = 'lighter';
+                    const g = ctx.createRadialGradient(activeBurst.lx, activeBurst.ly, 0, activeBurst.lx, activeBurst.ly, 350);
+                    g.addColorStop(0,   `rgba(255,100,0,${a*0.9})`);
+                    g.addColorStop(0.5, `rgba(255,50,0,${a*0.4})`);
+                    g.addColorStop(1,   'transparent');
+                    ctx.fillStyle = g;
+                    ctx.beginPath(); ctx.arc(activeBurst.lx, activeBurst.ly, 350, 0, Math.PI*2); ctx.fill();
+                    ctx.globalCompositeOperation = 'source-over';
+                } else { activeBurst = null; }
+            }
+
+            // ── Magnet Effect ──
+            const magnetDur = 8000;
+            const isMagnetOn = activeMagnet && (now - activeMagnet.startTime < magnetDur);
+            if (!isMagnetOn && activeMagnet) activeMagnet = null;
+
+            // ── Stars ──
+            if (stars.length < 6 && now - lastStarSpawn > 600) {
+                stars.push({ x: window.screenX + Math.random()*canvas.width, y: window.screenY + Math.random()*canvas.height, startTime: now, hue: Math.random()*360 });
+                lastStarSpawn = now;
+            }
+            const collectRange = 40 + magnetRangeBonus + (isMagnetOn ? 200 : 0);
+            for (let i = stars.length - 1; i >= 0; i--) {
+                const s   = stars[i];
+                const age = now - s.startTime;
+                if (age > 10000) { stars.splice(i, 1); continue; }
+                const blink = Math.sin(age*0.005)*0.5+0.5;
+                ctx.fillStyle = `hsla(${s.hue},100%,80%,${blink})`;
+                ctx.beginPath();
+                ctx.arc(s.x - window.screenX, s.y - window.screenY, 3, 0, Math.PI*2);
+                ctx.fill();
+                if (isMagnetOn) {
+                    const dx = localCenterX - s.x, dy = localCenterY - s.y;
+                    const d = Math.hypot(dx, dy);
+                    if (d < 600) { s.x += (dx/d)*6; s.y += (dy/d)*6; }
+                }
+                if (Math.hypot(s.x - localCenterX, s.y - localCenterY) < collectRange) {
+                    score += 30; currentParticles = Math.min(maxP, currentParticles + 10);
+                    spawnFloatingText(s.x - window.screenX, s.y - window.screenY, '+30 ⭐', '#ffcc00', 16);
                     stars.splice(i, 1);
                 }
             }
 
-            // --- Core Collision Logic (Physics only) ---
+            // ── Coin Pickups ──
+            for (let i = coinPickups.length - 1; i >= 0; i--) {
+                const c = coinPickups[i];
+                c.life -= 0.005;
+                if (c.life <= 0) { coinPickups.splice(i, 1); continue; }
+                const lx = c.gx - window.screenX, ly = c.gy - window.screenY;
+                if (isMagnetOn) {
+                    const dx = localCenterX - c.gx, dy = localCenterY - c.gy;
+                    const d = Math.hypot(dx, dy);
+                    if (d < 700) { c.gx += (dx/d)*7; c.gy += (dy/d)*7; }
+                }
+                const bob = Math.sin(now*0.004 + i)*5;
+                ctx.globalCompositeOperation = 'lighter';
+                ctx.fillStyle = `rgba(255,215,0,${c.life*0.9})`;
+                ctx.shadowBlur = 12; ctx.shadowColor = '#ffd700';
+                ctx.beginPath(); ctx.arc(lx, ly + bob, 6, 0, Math.PI*2); ctx.fill();
+                ctx.shadowBlur = 0;
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.fillStyle = `rgba(255,215,0,${c.life})`;
+                ctx.font = 'bold 9px Inter'; ctx.textAlign = 'center';
+                ctx.fillText(`+${c.value}`, lx, ly + bob - 10);
+                ctx.textAlign = 'left';
+                if (Math.hypot(c.gx - localCenterX, c.gy - localCenterY) < collectRange) {
+                    coins += c.value;
+                    saveCoins();
+                    spawnFloatingText(lx, ly - 20, `+${c.value} 🪙`, '#ffd700', 15);
+                    coinPickups.splice(i, 1);
+                }
+            }
+
+            // ── Power-up Pickups ──
+            for (let i = powerupPickups.length - 1; i >= 0; i--) {
+                const pu = powerupPickups[i];
+                const age = now - pu.startTime;
+                if (age > 15000) { powerupPickups.splice(i, 1); continue; }
+                const def = POWERUP_TYPES[pu.type];
+                const lx  = pu.gx - window.screenX;
+                const ly  = pu.gy - window.screenY;
+                const bob = Math.sin(now*0.003 + i*1.3)*6;
+                const a   = Math.min(1, 1 - age/15000);
+                const pulse = Math.sin(now*0.005)*0.3 + 0.7;
+                ctx.globalCompositeOperation = 'lighter';
+                const g = ctx.createRadialGradient(lx, ly+bob, 0, lx, ly+bob, 20);
+                g.addColorStop(0,   def.color + 'cc');
+                g.addColorStop(1,   'transparent');
+                ctx.fillStyle = g;
+                ctx.beginPath(); ctx.arc(lx, ly+bob, 20, 0, Math.PI*2); ctx.fill();
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.font = `${16 + pulse*4}px serif`;
+                ctx.textAlign = 'center';
+                ctx.globalAlpha = a;
+                ctx.fillText(def.emoji, lx, ly + bob + 6);
+                ctx.globalAlpha = 1;
+                ctx.textAlign = 'left';
+                // Collect — one pickup per frame max, only into an empty slot
+                if (Math.hypot(pu.gx - localCenterX, pu.gy - localCenterY) < 50) {
+                    const emptySlot = powerupSlots.findIndex(s => !s.type);
+                    if (emptySlot >= 0) {
+                        // Slot is free: place this drop there and remove it from the field
+                        powerupSlots[emptySlot].type = pu.type;
+                        powerupSlots[emptySlot].lastUsed = 0; // reset so it's immediately usable
+                        spawnFloatingText(lx, ly - 30, `${def.emoji} ${def.name} READY! [${emptySlot+1}]`, def.color, 16);
+                        powerupPickups.splice(i, 1);
+                    } else {
+                        // All 3 slots occupied — flash a warning, don't consume the drop
+                        spawnFloatingText(lx, ly - 30, 'SLOTS FULL — USE ONE FIRST!', '#ff4444', 14);
+                    }
+                    break; // Only process one pickup collection per frame
+                }
+            }
+
+            // ── Debris Particles ──
+            ctx.globalCompositeOperation = 'lighter';
+            for (let i = debrisParticles.length - 1; i >= 0; i--) {
+                const d = debrisParticles[i];
+                d.x += d.vx; d.y += d.vy;
+                d.vx *= 0.95; d.vy *= 0.95;
+                d.life -= d.decay;
+                if (d.life <= 0) { debrisParticles.splice(i, 1); continue; }
+                ctx.fillStyle = `hsla(${d.hue},100%,70%,${d.life})`;
+                ctx.beginPath();
+                ctx.arc(d.x - window.screenX, d.y - window.screenY, d.size * d.life, 0, Math.PI*2);
+                ctx.fill();
+            }
+            ctx.globalCompositeOperation = 'source-over';
+
+            // ── Core Collision ──
+            const coreScale = 0.5 + (currentParticles/1000)*0.5 + Math.min(score/50000, 0.5);
             Object.values(otherWindows).forEach(win => {
-                const dx = localCenterX - win.x;
-                const dy = localCenterY - win.y;
+                const dx = localCenterX - win.x, dy = localCenterY - win.y;
                 const dist = Math.hypot(dx, dy);
-                const minDist = 60; // radius + radius
-                
-                if (dist < minDist) {
+                if (dist < 60) {
                     screenShake = 10;
                     const angle = Math.atan2(dy, dx);
-                    const pushForce = (minDist - dist) * 0.2;
-                    nodeVX += Math.cos(angle) * pushForce;
-                    nodeVY += Math.sin(angle) * pushForce;
-                    // We don't apply damage or XP here as requested
+                    const pushForce = (60-dist)*0.2;
+                    nodeVX += Math.cos(angle)*pushForce;
+                    nodeVY += Math.sin(angle)*pushForce;
                 }
-                
-                // Smoothly slide away from opponents' active shields
-                if (win.wave && (Date.now() - win.wave.startTime < 4000)) {
-                    const shieldRadius = ((Date.now() - win.wave.startTime) / 4000) * 250;
-                    const coreRadius = 30 * coreScale;
-                    if (dist < shieldRadius + coreRadius) {
-                        const overlap = (shieldRadius + coreRadius) - dist;
+                if (win.wave && (now - win.wave.startTime < 4000)) {
+                    const sr = (now - win.wave.startTime)/4000*250;
+                    const cr = 30 * coreScale;
+                    if (dist < sr + cr) {
+                        const overlap = (sr+cr) - dist;
                         const angle = Math.atan2(dy, dx);
-                        nodeVX += Math.cos(angle) * overlap * 0.05; 
-                        nodeVY += Math.sin(angle) * overlap * 0.05;
+                        nodeVX += Math.cos(angle)*overlap*0.05;
+                        nodeVY += Math.sin(angle)*overlap*0.05;
                     }
                 }
             });
 
-            // Gather all current orb centers for entanglement logic
+            // Gather centers / mice
             const allCenters = [{ x: localCenterX, y: localCenterY }];
-            const allMice = [{ x: window.screenX + mousePos.x, y: window.screenY + mousePos.y }];
-            
+            const allMice    = [{ x: window.screenX + mousePos.x, y: window.screenY + mousePos.y }];
             Object.values(otherWindows).forEach(win => {
                 allCenters.push({ x: win.x, y: win.y });
                 allMice.push({ x: win.mouseX, y: win.mouseY });
             });
 
-            // Update and Draw all systems (Local + Remote Clones)
+            // ── Local Particle System ──
             ctx.globalCompositeOperation = 'lighter';
-            
-            // Core size now represents health (particles)
-            const coreScale = 0.5 + (currentParticles / 1000) * 0.5 + Math.min(score / 50000, 0.5);
-
-            // 1. Process Local System
-            const localParticles = getOrCreateSystem(windowId); // Ensure particles are initialized
-
-            // Collision detection for individual orbiting particles (Local Player)
+            const localParticles = getOrCreateSystem(windowId);
             let activeCount = Math.floor(currentParticles);
             for (let i = 0; i < activeCount; i++) {
                 const p = localParticles[i];
                 let particleHit = false;
-
-                // Check against Asteroids
                 for (const [astId, ast] of asteroids.entries()) {
                     if (Math.hypot(p.x - ast.x, p.y - ast.y) < ast.size) {
-                        // Particle hits asteroid: broadcast hit, particle is consumed
-                        const hit = { type: 'asteroid_hit', asteroidId: astId, damage: 1, attackerId: windowId }; // <--- ADJUST HERE: Damage your orbiting particles deal to asteroids
+                        const hit = { type:'asteroid_hit', asteroidId: astId, damage:1, attackerId: windowId };
                         broadcast(hit); handleIncomingData(hit);
-                        particleHit = true;
-                        break;
+                        particleHit = true; break;
                     }
                 }
-
-                // Check against Opponent Cores
                 if (!particleHit) {
                     for (const win of Object.values(otherWindows)) {
-                        const opponentCoreRadius = 30 * (0.5 + (win.particles / 1000) * 0.5 + Math.min((win.score || 0) / 50000, 0.5));
-                        if (Math.hypot(p.x - win.x, p.y - win.y) < opponentCoreRadius) {
-                            // Particle hits opponent core: particle is consumed
-                            // No damage broadcast here, as per "melee fight" logic (particles just disappear)
-                            particleHit = true;
-                            break;
-                        }
+                        const oppR = 30*(0.5+(win.particles/1000)*0.5+Math.min((win.score||0)/50000,0.5));
+                        if (Math.hypot(p.x - win.x, p.y - win.y) < oppR) { particleHit = true; break; }
                     }
                 }
-
                 if (particleHit) {
-                    currentParticles = Math.max(0, currentParticles - 5); // <--- ADJUST HERE: Health you lose when one of your orbiting particles crashes into an asteroid
-                    activeCount--;
-                    i--; // Check the particle swapped into this position
+                    currentParticles = Math.max(0, currentParticles - 5);
+                    activeCount--; i--;
                 }
             }
-
             drawSystem(localParticles, localCenterX, localCenterY, winVelX, winVelY, allCenters, allMice, windowHue, false, currentParticles);
-            drawCore(localCenterX - window.screenX, localCenterY - window.screenY,`hsla(${windowHue}, 100%, 50%, 0.8)`, coreScale);
+            drawCore(lCX, lCY, `hsla(${windowHue},100%,50%,0.8)`, coreScale);
 
-            // Update and draw projectiles
+            // Nitro trail
+            if (isNitroActive) {
+                ctx.globalCompositeOperation = 'lighter';
+                for (let t = 0; t < 4; t++) {
+                    const tx = lCX - nodeVX * (t+1) * 3 + (Math.random()-0.5)*8;
+                    const ty = lCY - nodeVY * (t+1) * 3 + (Math.random()-0.5)*8;
+                    ctx.fillStyle = `hsla(${windowHue},100%,60%,${0.4-t*0.08})`;
+                    ctx.beginPath(); ctx.arc(tx, ty, 8-t*1.5, 0, Math.PI*2); ctx.fill();
+                }
+                ctx.globalCompositeOperation = 'source-over';
+            }
+
+            // ── Projectiles ──
             for (let i = projectiles.length - 1; i >= 0; i--) {
                 const p = projectiles[i];
                 p.x += p.vx; p.y += p.vy;
-                
                 let deflected = false;
-                // Check deflection from Local Shield
-                if (myWave && (Date.now() - myWave.startTime < 4000)) {
-                    const shieldRadius = ((Date.now() - myWave.startTime) / 4000) * 250;
-                    if (Math.hypot(p.x - localCenterX, p.y - localCenterY) < shieldRadius) deflected = true;
+                if (myWave && (now - myWave.startTime < 4000)) {
+                    if (Math.hypot(p.x - localCenterX, p.y - localCenterY) < (now-myWave.startTime)/4000*250) deflected = true;
                 }
-                
-                // Check deflection from Remote Shields
                 Object.values(otherWindows).forEach(win => {
-                    if (win.wave && (Date.now() - win.wave.startTime < 4000)) {
-                        const shieldRadius = ((Date.now() - win.wave.startTime) / 4000) * 250;
-                        if (Math.hypot(p.x - win.x, p.y - win.y) < shieldRadius) deflected = true;
+                    if (win.wave && (now - win.wave.startTime < 4000)) {
+                        if (Math.hypot(p.x - win.x, p.y - win.y) < (now-win.wave.startTime)/4000*250) deflected = true;
                     }
                 });
-
-                if (deflected) { projectiles.splice(i, 1); continue; }
-                if (Date.now() - p.startTime > 4000) { projectiles.splice(i, 1); continue; }
-                
+                if (deflected) { projectiles.splice(i,1); continue; }
+                if (now - p.startTime > 4000) { projectiles.splice(i,1); continue; }
                 drawProjectile(p);
-                
-                let projectileConsumed = false;
+                let consumed = false;
                 if (p.ownerId === windowId) {
-                    // Check Asteroid Hits
                     for (const [astId, ast] of asteroids.entries()) {
                         if (Math.hypot(p.x - ast.x, p.y - ast.y) < ast.size) {
-                            // Projectile hits asteroid: broadcast hit, projectile is consumed
-                            const hit = { type: 'asteroid_hit', asteroidId: astId, damage: 1, attackerId: windowId }; // <--- ADJUST HERE: Damage a projectile deals to an asteroid
+                            const hit = { type:'asteroid_hit', asteroidId: astId, damage:1, attackerId: windowId };
                             broadcast(hit); handleIncomingData(hit);
-                            projectiles.splice(i, 1);
-                            projectileConsumed = true;
-                            break; 
+                            projectiles.splice(i,1); consumed = true; break;
                         }
                     }
-
-                    if (projectileConsumed) continue;
-
-                    Object.entries(otherWindows).forEach(([id, win]) => {
-                        if (!projectileConsumed && Math.hypot(p.x - win.x, p.y - win.y) < 40) {
-                            // Attacker check: Ensure target isn't currently shielded before broadcasting hit
-                            if (win.wave && (Date.now() - win.wave.startTime < 4000)) return;
-                            
-                            broadcast({ type: 'projectile_hit', targetId: id, attackerId: windowId });
-                            
-                            // Apply damage to opponent particle pool
-                            if (otherWindows[id]) {
-                                otherWindows[id].particles = Math.max(0, (otherWindows[id].particles || 0) - 5); // <--- ADJUST HERE: Health another player loses when hit by YOUR projectile
+                    if (!consumed) {
+                        Object.entries(otherWindows).forEach(([id, win]) => {
+                            if (!consumed && Math.hypot(p.x - win.x, p.y - win.y) < 40) {
+                                if (win.wave && (now - win.wave.startTime < 4000)) return;
+                                broadcast({ type:'projectile_hit', targetId: id, attackerId: windowId });
+                                if (otherWindows[id]) otherWindows[id].particles = Math.max(0,(otherWindows[id].particles||0)-5);
+                                score += 30;
+                                document.getElementById('scoreDisplay').textContent = score;
+                                spawnFloatingText(p.x - window.screenX, p.y - window.screenY, '+30 HIT!', '#ff00ff', 16);
+                                // Kill streak
+                                if (now - lastKillTime < 4000) { killStreak++; } else { killStreak = 1; }
+                                lastKillTime = now;
+                                showKillStreak(killStreak);
+                                projectiles.splice(i,1); consumed = true;
                             }
-                            
-                            score += 30; // Reduced for player combat, encouraged for co-op
-                            document.getElementById('scoreDisplay').textContent = score;
-                            projectiles.splice(i, 1);
-                            projectileConsumed = true;
-                        }
-                    });
+                        });
+                    }
                 }
             }
 
             manageGameFlow();
 
-            // Update and draw asteroids
-            asteroids.forEach((ast, astId) => { // Iterate over Map values
+            // ── Asteroids ──
+            asteroids.forEach((ast, astId) => {
                 ast.update(localCenterX, localCenterY);
-
-                // Check for Shield Deflection
-                let deflectorPos = null;
-                let deflectorRadius = 0;
-                // Local Shield check
-                if (myWave && (Date.now() - myWave.startTime < 4000)) {
-                    const r = (Date.now() - myWave.startTime) / 4000 * 250;
+                let deflectorPos = null, deflectorRadius = 0;
+                if (myWave && (now - myWave.startTime < 4000)) {
+                    const r = (now - myWave.startTime)/4000*250;
                     if (Math.hypot(ast.x - localCenterX, ast.y - localCenterY) < r + ast.size) {
-                        deflectorPos = {x: localCenterX, y: localCenterY};
-                        deflectorRadius = r;
+                        deflectorPos = { x: localCenterX, y: localCenterY }; deflectorRadius = r;
                     }
                 }
-                // Remote Shields check
                 if (!deflectorPos) {
                     for (const win of Object.values(otherWindows)) {
-                        if (win.wave && (Date.now() - win.wave.startTime < 4000)) {
-                            const r = (Date.now() - win.wave.startTime) / 4000 * 250;
-                            if (Math.hypot(ast.x - win.x, ast.y - win.y) < r + ast.size) { 
-                                deflectorPos = {x: win.x, y: win.y}; 
-                                deflectorRadius = r;
-                                break; 
+                        if (win.wave && (now - win.wave.startTime < 4000)) {
+                            const r = (now - win.wave.startTime)/4000*250;
+                            if (Math.hypot(ast.x - win.x, ast.y - win.y) < r + ast.size) {
+                                deflectorPos = { x: win.x, y: win.y }; deflectorRadius = r; break;
                             }
                         }
                     }
                 }
-
                 if (deflectorPos) {
-                    const dx = ast.x - deflectorPos.x;
-                    const dy = ast.y - deflectorPos.y;
+                    const dx = ast.x - deflectorPos.x, dy = ast.y - deflectorPos.y;
                     const dist = Math.hypot(dx, dy);
                     const overlap = (deflectorRadius + ast.size) - dist;
                     const angle = Math.atan2(dy, dx);
-                    
-                    // Smoothly push asteroid away (builds up momentum)
-                    ast.pushVx = (ast.pushVx || 9) + Math.cos(angle) * overlap * 9; // SHIELD KNOCKBACK: 0.1 is the force multiplier, 0 is the default initial velocity
-                    ast.pushVy = (ast.pushVy || 9) + Math.sin(angle) * overlap * 9; // SHIELD KNOCKBACK: 0.1 is the force multiplier, 0 is the default initial velocity
-
-                    // Throttle the damage application so it isn't dealt every single frame while sliding
-                    if (Date.now() - (ast.lastShieldHit || 0) > 500) {
-                        ast.lastShieldHit = Date.now();
-                        const hit = { type: 'asteroid_hit', asteroidId: astId, damage: 2, attackerId: windowId }; // <--- ADJUST HERE: Damage your shield deals to an asteroid when bouncing it
+                    ast.pushVx = (ast.pushVx||9) + Math.cos(angle)*overlap*9;
+                    ast.pushVy = (ast.pushVy||9) + Math.sin(angle)*overlap*9;
+                    if (now - (ast.lastShieldHit||0) > 500) {
+                        ast.lastShieldHit = now;
+                        const hit = { type:'asteroid_hit', asteroidId: astId, damage:2, attackerId: windowId };
                         broadcast(hit); handleIncomingData(hit);
                         screenShake = 15;
                     }
                 }
-
                 ast.draw(ctx);
                 if (Math.hypot(ast.x - localCenterX, ast.y - localCenterY) < ast.size + 20) {
                     screenShake = 20;
-                    
-                    // Collision drains particles (health) and damages asteroid
-                    currentParticles = Math.max(0, currentParticles - 5); // <--- ADJUST HERE: Health you lose when your core crashes into an asteroid
-                    const hit = { type: 'asteroid_hit', asteroidId: astId, damage: 1, attackerId: windowId }; // <--- ADJUST HERE: Damage your core deals to an asteroid when crashing into it
+                    currentParticles = Math.max(0, currentParticles - 5);
+                    spawnFloatingText(lCX + (Math.random()-0.5)*40, lCY - 30, '-5 HP', '#ff4444', 16);
+                    const hit = { type:'asteroid_hit', asteroidId: astId, damage:1, attackerId: windowId };
                     broadcast(hit); handleIncomingData(hit);
-                    // KNOCKBACK: Pushes the player away from the asteroid on collision
-                    nodeVX += (localCenterX - ast.x) * 0.5; 
-                    nodeVY += (localCenterY - ast.y) * 0.5;
+                    nodeVX += (localCenterX - ast.x)*0.5;
+                    nodeVY += (localCenterY - ast.y)*0.5;
                 }
             });
 
-            // Draw local protective wave
             if (myWave) drawWave(localCenterX, localCenterY, myWave.startTime, windowHue);
 
-            // 2. Process Remote Systems
+            // ── Remote Systems ──
             const remoteIds = Object.keys(otherWindows);
             remoteIds.forEach((id, index) => {
                 const win = otherWindows[id];
                 const particles = getOrCreateSystem(id);
-                drawSystem(particles, win.x, win.y, win.vx, win.vy, allCenters, allMice, win.hue, true, win.particles || particleCount);
-
-                const relX = win.x - window.screenX;
-                const relY = win.y - window.screenY;
-                drawCore(relX, relY, `hsla(${win.hue}, 100%, 50%, 0.4)`, coreScale * 0.8);
-
-                // Draw remote waves
+                drawSystem(particles, win.x, win.y, win.vx, win.vy, allCenters, allMice, win.hue, true, win.particles||particleCount);
+                const relX = win.x - window.screenX, relY = win.y - window.screenY;
+                drawCore(relX, relY, `hsla(${win.hue},100%,50%,0.4)`, coreScale*0.8);
                 if (win.wave) drawWave(win.x, win.y, win.wave.startTime, win.hue);
-
-                // Draw Tendril between Local and this Remote
-                ctx.strokeStyle = `hsla(${win.hue}, 100%, 50%, 0.2)`;
+                // Tendril
+                ctx.strokeStyle = `hsla(${win.hue},100%,50%,0.2)`;
                 ctx.lineWidth = 1 + combo;
                 ctx.beginPath();
-                ctx.moveTo(localCenterX - window.screenX, localCenterY - window.screenY);
-                const cpX = (localCenterX + win.x) / 2 - window.screenX + (Math.sin(time * 2 + windowHue + win.hue) * 40);
-                const cpY = (localCenterY + win.y) / 2 - window.screenY + (Math.cos(time * 1.5 + windowHue + win.hue) * 40);
+                ctx.moveTo(lCX, lCY);
+                const cpX = (localCenterX + win.x)/2 - window.screenX + Math.sin(time*2 + windowHue + win.hue)*40;
+                const cpY = (localCenterY + win.y)/2 - window.screenY + Math.cos(time*1.5 + windowHue + win.hue)*40;
                 ctx.quadraticCurveTo(cpX, cpY, relX, relY);
                 ctx.stroke();
-
-                // Draw Tendrils between this Remote and other Remote windows
-                for (let j = index + 1; j < remoteIds.length; j++) {
+                for (let j = index+1; j < remoteIds.length; j++) {
                     const win2 = otherWindows[remoteIds[j]];
-                    ctx.strokeStyle = `hsla(${win.hue}, 100%, 50%, 0.1)`;
+                    ctx.strokeStyle = `hsla(${win.hue},100%,50%,0.1)`;
                     ctx.lineWidth = 1;
-                    ctx.beginPath();
-                    ctx.moveTo(relX, relY);
-                    const cpX2 = (win.x + win2.x) / 2 - window.screenX + (Math.sin(time * 2 + win.hue + win2.hue) * 30);
-                    const cpY2 = (win.y + win2.y) / 2 - window.screenY + (Math.cos(time * 1.5 + win.hue + win2.hue) * 30);
+                    ctx.beginPath(); ctx.moveTo(relX, relY);
+                    const cpX2 = (win.x+win2.x)/2 - window.screenX + Math.sin(time*2+win.hue+win2.hue)*30;
+                    const cpY2 = (win.y+win2.y)/2 - window.screenY + Math.cos(time*1.5+win.hue+win2.hue)*30;
                     ctx.quadraticCurveTo(cpX2, cpY2, win2.x - window.screenX, win2.y - window.screenY);
                     ctx.stroke();
                 }
             });
 
-            ctx.setTransform(1, 0, 0, 1, 0, 0); // Reset shake
+            ctx.setTransform(1,0,0,1,0,0);
 
-            // 3. Cleanup stale systems
+            // ── Floating Texts ──
+            ctx.globalCompositeOperation = 'source-over';
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.life -= 0.012;
+                ft.y += ft.vy;
+                ft.vy *= 0.96;
+                if (ft.life <= 0) { floatingTexts.splice(i, 1); continue; }
+                ctx.globalAlpha = ft.life;
+                ctx.fillStyle   = ft.color;
+                ctx.font        = `bold ${ft.size}px Orbitron, monospace`;
+                ctx.textAlign   = 'center';
+                ctx.shadowBlur  = 10;
+                ctx.shadowColor = ft.color;
+                ctx.fillText(ft.text, ft.x, ft.y);
+            }
+            ctx.globalAlpha = 1;
+            ctx.textAlign   = 'left';
+            ctx.shadowBlur  = 0;
+
+            // Cleanup stale systems
             for (const id of systems.keys()) {
-                if (id !== windowId && !otherWindows[id]) {
-                    systems.delete(id);
-                }
+                if (id !== windowId && !otherWindows[id]) systems.delete(id);
             }
 
-            } catch (e) {
-                console.error(`Error in draw loop for window ${windowId}:`, e);
-            } finally {
-                requestAnimationFrame(draw); // Always schedule the next frame
-            }
+        } catch (e) {
+            console.error(`Draw error [${windowId}]:`, e);
+        } finally {
+            requestAnimationFrame(draw);
         }
+    }
 
-        // Helper to draw a particle system
-        function drawSystem(particles, tx, ty, vx, vy, centers, mice, hue, isRemote = false, activeCount = particleCount) {
-            const opacity = isRemote ? 0.4 : 0.8;
-            const count = Math.floor(activeCount);
-            
-            // Lines between nearby particles (Constellation effect)
-            ctx.beginPath();
-            ctx.strokeStyle = `hsla(${hue}, 100%, 50%, ${opacity * 0.3})`;
-            ctx.lineWidth = 0.5;
-            for (let i = 0; i < count; i++) {
-                for (let j = i + 1; j < Math.min(i + 5, count); j++) {
-                    const p1 = particles[i];
-                    const p2 = particles[j];
-                    const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                    if (d < connectionDist) {
-                        ctx.moveTo(p1.x - window.screenX, p1.y - window.screenY);
-                        ctx.lineTo(p2.x - window.screenX, p2.y - window.screenY);
-                    }
-                }
-            }
-            ctx.stroke();
-
-            // Update and Draw particles
-            for (let i = 0; i < particles.length; i++) {
-                const p = particles[i];
-                p.update(tx, ty, vx, vy, centers, mice);
-                
-                if (i < count) {
-                    const speed = Math.hypot(p.vx, p.vy);
-                    const lum = Math.min(70 + speed * 3, 95);
-                    ctx.fillStyle = `hsla(${hue}, 100%, ${lum}%, ${opacity})`;                   
-                    ctx.beginPath();
-                    ctx.arc(p.x - window.screenX, p.y - window.screenY, p.size, 0, Math.PI * 2);
-                    ctx.fill();
+    // ── Particle System Draw Helper ──
+    function drawSystem(particles, tx, ty, vx, vy, centers, mice, hue, isRemote=false, activeCount=particleCount) {
+        const opacity = isRemote ? 0.4 : 0.8;
+        const count   = Math.floor(activeCount);
+        ctx.beginPath();
+        ctx.strokeStyle = `hsla(${hue},100%,50%,${opacity*0.3})`;
+        ctx.lineWidth = 0.5;
+        for (let i = 0; i < count; i++) {
+            for (let j = i+1; j < Math.min(i+5, count); j++) {
+                const p1 = particles[i], p2 = particles[j];
+                const d  = Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                if (d < connectionDist) {
+                    ctx.moveTo(p1.x - window.screenX, p1.y - window.screenY);
+                    ctx.lineTo(p2.x - window.screenX, p2.y - window.screenY);
                 }
             }
         }
-
-        // Start the loop
-        draw();
-
-        // Broadcast position independently
-        setInterval(broadcastPosition, 16);
-
-        // Periodically clean up players who haven't been seen in 5 seconds
-        setInterval(() => {
-            const now = Date.now();
-            for (const id in otherWindows) {
-                if (now - otherWindows[id].lastSeen > 5000) {
-                    delete otherWindows[id];
-                }
+        ctx.stroke();
+        for (let i = 0; i < particles.length; i++) {
+            const p = particles[i];
+            p.update(tx, ty, vx, vy, centers, mice);
+            if (i < count) {
+                const speed = Math.hypot(p.vx, p.vy);
+                const lum   = Math.min(70 + speed*3, 95);
+                ctx.fillStyle = `hsla(${hue},100%,${lum}%,${opacity})`;
+                ctx.beginPath();
+                ctx.arc(p.x - window.screenX, p.y - window.screenY, p.size, 0, Math.PI*2);
+                ctx.fill();
             }
-        }, 2000);
+        }
+    }
 
-        window.addEventListener('beforeunload', () => {
-            channel.postMessage({ id: windowId, type: 'close' });
-            channel.close();
-        });
+    // Start
+    draw();
+    setInterval(broadcastPosition, 16);
+    setInterval(() => {
+        const now = Date.now();
+        for (const id in otherWindows) {
+            if (now - otherWindows[id].lastSeen > 5000) delete otherWindows[id];
+        }
+    }, 2000);
+    window.addEventListener('beforeunload', () => {
+        channel.postMessage({ id: windowId, type: 'close' });
+        channel.close();
+    });
     </script>
 </body>
 </html>
