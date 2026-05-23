@@ -579,6 +579,48 @@
             color: #ff00ff;
             text-shadow: 0 0 5px #ff00ff;
         }
+        /* ── Zoom Controls ── */
+        #zoomControls {
+            position: absolute;
+            bottom: 20px; left: 190px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            padding: 4px 8px;
+            border-radius: 8px;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.65em;
+            pointer-events: auto;
+            backdrop-filter: blur(4px);
+            z-index: 110;
+        }
+        #zoomControls button {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #fff;
+            border-radius: 4px;
+            padding: 2px 6px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: all 0.2s;
+        }
+        #zoomControls button:hover {
+            background: rgba(0, 212, 255, 0.18);
+            border-color: #00d4ff;
+        }
+        #zoomControls #autoZoomBtn.active {
+            background: rgba(0, 212, 255, 0.18);
+            color: #00d4ff;
+            border-color: #00d4ff;
+            text-shadow: 0 0 5px #00d4ff;
+        }
+        #zoomDisplay {
+            width: 42px;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.7);
+        }
         
         /* ── Mobile Layout Overrides ── */
         @media (max-width: 768px) {
@@ -622,6 +664,10 @@
             }
             #shopInner {
                 padding: 16px;
+            }
+            #zoomControls {
+                bottom: 80px;
+                left: 20px;
             }
         }
     </style>
@@ -688,6 +734,14 @@
         <div class="mobile-btn mobile-btn-nitro" id="btnNitro">⚡</div>
     </div>
 
+    <!-- Zoom Controls -->
+    <div id="zoomControls">
+        <button onclick="changeZoom(-0.1)" title="Zoom Out">➖</button>
+        <span id="zoomDisplay">100%</span>
+        <button onclick="changeZoom(0.1)" title="Zoom In">➕</button>
+        <button onclick="toggleAutoZoom()" id="autoZoomBtn" class="active" title="Auto-scale to fit all players">AUTO</button>
+    </div>
+
     <!-- Upgrade Shop -->
     <div id="shop">
         <div id="shopInner">
@@ -711,10 +765,92 @@
     let rightJoystickInput = { x: 0, y: 0 };
     let rightJoystickActive = false;
 
+    // ── Camera Zoom & Viewport Scaling Configuration ──
+    let cameraZoom = 1.0;
+    let autoZoomEnabled = true;
+
     window.toggleNetworkPanel = function() {
         const el = document.getElementById('networkUI');
         el.classList.toggle('open');
     };
+
+    window.changeZoom = function(delta) {
+        autoZoomEnabled = false;
+        cameraZoom = Math.max(0.3, Math.min(1.5, cameraZoom + delta));
+        updateZoomDisplay();
+    };
+
+    window.toggleAutoZoom = function() {
+        autoZoomEnabled = !autoZoomEnabled;
+        updateZoomDisplay();
+    };
+
+    function updateZoomDisplay() {
+        const el = document.getElementById('zoomDisplay');
+        if (el) el.textContent = Math.round(cameraZoom * 100) + '%';
+        const autoEl = document.getElementById('autoZoomBtn');
+        if (autoEl) autoEl.classList.toggle('active', autoZoomEnabled);
+    }
+
+    function calculateAutoZoom() {
+        if (!autoZoomEnabled) return;
+        
+        let requiredZoom = 1.0;
+        const margin = 100; // safe margin in pixels from screen edges
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        
+        const localCenterX = window.screenX + canvas.width/2  + nodeOffX;
+        const localCenterY = window.screenY + canvas.height/2 + nodeOffY;
+        
+        let hasPeers = false;
+        
+        Object.values(otherWindows).forEach(win => {
+            hasPeers = true;
+            const dx = Math.abs(win.x - localCenterX);
+            const dy = Math.abs(win.y - localCenterY);
+            
+            if (dx > 0) {
+                const zoomX = (cx - margin) / dx;
+                if (zoomX < requiredZoom) requiredZoom = zoomX;
+            }
+            if (dy > 0) {
+                const zoomY = (cy - margin) / dy;
+                if (zoomY < requiredZoom) requiredZoom = zoomY;
+            }
+        });
+        
+        // Single player mode adaptive zoom for small mobile viewports
+        if (!hasPeers && isMobile) {
+            const virtualW = 1280;
+            const virtualH = 720;
+            const scaleX = canvas.width / virtualW;
+            const scaleY = canvas.height / virtualH;
+            requiredZoom = Math.min(1.0, Math.max(0.5, Math.min(scaleX, scaleY)));
+        }
+        
+        const targetZoom = Math.max(0.3, Math.min(1.5, requiredZoom));
+        cameraZoom += (targetZoom - cameraZoom) * 0.1; // Smooth interpolate
+        updateZoomDisplay();
+    }
+
+    function getPlayerScreenCenter() {
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        return {
+            x: cx + nodeOffX * cameraZoom,
+            y: cy + nodeOffY * cameraZoom
+        };
+    }
+
+    function screenToVirtual(sx, sy) {
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        return {
+            x: (sx - cx) / cameraZoom + cx,
+            y: (sy - cy) / cameraZoom + cy
+        };
+    }
 
     if (isMobile) {
         document.body.classList.add('mobile-device');
@@ -1588,7 +1724,8 @@
             }
         }
         isPointerDown = true;
-        const gx = window.screenX + e.clientX, gy = window.screenY + e.clientY;
+        const vPos = screenToVirtual(e.clientX, e.clientY);
+        const gx = window.screenX + vPos.x, gy = window.screenY + vPos.y;
         broadcast({ type: 'pulse', x: gx, y: gy });
         applyPulse(gx, gy, true);
     });
@@ -1708,8 +1845,8 @@
         
         let angle = customAngle;
         if (angle === undefined) {
-            const gxM = window.screenX + mousePos.x, gyM = window.screenY + mousePos.y;
-            angle = Math.atan2(gyM - lCY, gxM - lCX);
+            const pCenter = getPlayerScreenCenter();
+            angle = Math.atan2(mousePos.y - pCenter.y, mousePos.x - pCenter.x);
         }
         
         const proj = {
@@ -2012,12 +2149,23 @@
                 }
             }
 
+            // ── Camera Auto-Zoom ──
+            calculateAutoZoom();
+
             // ── Clear canvas ──
             ctx.globalCompositeOperation = 'source-over';
             ctx.fillStyle = 'rgba(5,5,5,0.2)';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Screen shake
+            // Apply camera zoom transform (centred on screen centre)
+            ctx.save();
+            const cxScreen = canvas.width / 2;
+            const cyScreen = canvas.height / 2;
+            ctx.translate(cxScreen, cyScreen);
+            ctx.scale(cameraZoom, cameraZoom);
+            ctx.translate(-cxScreen, -cyScreen);
+
+            // Screen shake (applied inside zoom space)
             if (screenShake > 0.1) {
                 ctx.translate(
                     Math.random()*screenShake - screenShake/2,
@@ -2412,9 +2560,7 @@
                 }
             });
 
-            ctx.setTransform(1,0,0,1,0,0);
-
-            // ── Floating Texts ──
+            // ── Floating Texts (drawn inside zoom so they appear near in-game events) ──
             ctx.globalCompositeOperation = 'source-over';
             for (let i = floatingTexts.length - 1; i >= 0; i--) {
                 const ft = floatingTexts[i];
@@ -2433,6 +2579,10 @@
             ctx.globalAlpha = 1;
             ctx.textAlign   = 'left';
             ctx.shadowBlur  = 0;
+
+            // Restore zoom transform
+            ctx.restore();
+            ctx.setTransform(1,0,0,1,0,0);
 
             // Cleanup stale systems
             for (const id of systems.keys()) {
