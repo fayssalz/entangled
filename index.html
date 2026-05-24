@@ -1465,7 +1465,8 @@
             mouseX: window.screenX + mousePos.x,
             mouseY: window.screenY + mousePos.y,
             timestamp: Date.now(), vx: winVelX, vy: winVelY,
-            score, particles: currentParticles
+            score, particles: currentParticles,
+            screenW: window.innerWidth, screenH: window.innerHeight
         });
     }
 
@@ -1539,8 +1540,8 @@
                 setTimeout(() => document.body.style.backgroundColor = '#050505', 100);
             }
         } else {
-            const { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, wave, timestamp, particles: remoteParticles } = data;
-            otherWindows[id] = { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, lastSeen: Date.now(), wave, timestamp, particles: remoteParticles };
+            const { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, wave, timestamp, particles: remoteParticles, screenW: remoteScreenW, screenH: remoteScreenH } = data;
+            otherWindows[id] = { id, x, y, vx, vy, hue, mouseX, mouseY, score: remoteScore, lastSeen: Date.now(), wave, timestamp, particles: remoteParticles, screenW: remoteScreenW || canvas.width, screenH: remoteScreenH || canvas.height };
             updateLeaderboard();
         }
     }
@@ -2068,13 +2069,26 @@
                 }
             }
 
+            // Expand movement boundary to the largest screen in the party
+            // so small-screen players can roam the full virtual playfield
+            let fieldW = canvas.width;
+            let fieldH = canvas.height;
+            Object.values(otherWindows).forEach(win => {
+                if (win.screenW && win.screenW > fieldW) fieldW = win.screenW;
+                if (win.screenH && win.screenH > fieldH) fieldH = win.screenH;
+            });
+
             const margin = 60;
             const centerX = canvas.width/2  + nodeOffX;
             const centerY = canvas.height/2 + nodeOffY;
-            if (centerX < margin)               nodeVX += (margin - centerX)*0.05;
-            if (centerX > canvas.width - margin) nodeVX -= (centerX - (canvas.width - margin))*0.05;
-            if (centerY < margin)               nodeVY += (margin - centerY)*0.05;
-            if (centerY > canvas.height- margin) nodeVY -= (centerY - (canvas.height- margin))*0.05;
+            const halfFieldW = fieldW / 2;
+            const halfFieldH = fieldH / 2;
+            const midX = canvas.width / 2;
+            const midY = canvas.height / 2;
+            if (centerX < midX - halfFieldW + margin)  nodeVX += (midX - halfFieldW + margin - centerX)*0.05;
+            if (centerX > midX + halfFieldW - margin)  nodeVX -= (centerX - (midX + halfFieldW - margin))*0.05;
+            if (centerY < midY - halfFieldH + margin)  nodeVY += (midY - halfFieldH + margin - centerY)*0.05;
+            if (centerY > midY + halfFieldH - margin)  nodeVY -= (centerY - (midY + halfFieldH - margin))*0.05;
 
             nodeVX *= 0.94; nodeVY *= 0.94;
             nodeOffX += nodeVX; nodeOffY += nodeVY;
